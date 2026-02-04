@@ -350,6 +350,31 @@ button {
     /* Minimal side padding */
 }
 
+.card-rating {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #46d369;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.card-star-rating {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #ffd700;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
 .card-title {
     font-weight: 700;
     font-size: 1rem;
@@ -522,7 +547,7 @@ button {
 .review-card {
     display: flex;
     gap: 16px;
-    padding: 24px;
+    padding: 32px 80px 32px 32px;
     background: #fff;
     border-radius: 12px;
     border: 1px solid var(--color-border);
@@ -659,11 +684,41 @@ button {
     align-items: center;
 }
 
-.review-actions input {
-    width: 120px;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+/* Star Rating Input */
+.star-rating-input {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    gap: 4px;
+    align-items: center;
+}
+
+.star-rating-input input {
+    display: none;
+}
+
+.star-rating-input label {
+    font-size: 24px;
+    color: #ddd;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.star-rating-input input:checked~label {
+    color: #ffd700;
+}
+
+.star-rating-input label:hover,
+.star-rating-input label:hover~label {
+    color: #ffd700;
+}
+
+.rating-score {
+    margin-right: auto;
+    font-size: 1rem;
+    font-weight: bold;
+    color: #ffd700;
+    padding-left: 12px;
 }
 
 .review-avatar-img {

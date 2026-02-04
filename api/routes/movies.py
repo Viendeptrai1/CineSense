@@ -74,6 +74,8 @@ async def list_movies(
             release_date=movie.release_date,
             poster_path=movie.poster_path,
             genres=[GenreSchema(id=g.id, name=g.name) for g in movie.genres],
+            review_count=len(movie.reviews),
+            average_rating=sum(r.rating for r in movie.reviews if r.rating)/len([r for r in movie.reviews if r.rating]) if any(r.rating for r in movie.reviews) else None
         ))
     
     return MovieListResponse(
