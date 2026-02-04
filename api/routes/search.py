@@ -180,6 +180,8 @@ async def semantic_search(
                     overview=movie.overview[:200] + "..." if movie.overview and len(movie.overview) > 200 else movie.overview,
                     matched_review="",  # We don't store review text in Qdrant payload currently
                     genres=genre_names,
+                    review_count=len(movie.reviews),
+                    average_rating=sum(r.rating for r in movie.reviews if r.rating)/len([r for r in movie.reviews if r.rating]) if any(r.rating for r in movie.reviews) else None
                 ))
         
         # Sort by score (descending)

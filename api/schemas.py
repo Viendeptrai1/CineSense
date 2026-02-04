@@ -102,6 +102,8 @@ class SearchResultItem(BaseModel):
     overview: Optional[str] = Field(None, description="Movie overview")
     matched_review: str = Field(..., description="The review that matched the query")
     genres: List[str] = Field(default_factory=list, description="Genre names")
+    review_count: int = Field(0, description="Total reviews")
+    average_rating: Optional[float] = Field(None, description="Average rating")
 
 
 class SearchResponse(BaseModel):
@@ -153,6 +155,8 @@ class MovieSchema(BaseModel):
     release_date: Optional[date] = None
     poster_path: Optional[str] = None
     genres: List[GenreSchema] = []
+    review_count: int = 0
+    average_rating: Optional[float] = None
     
     class Config:
         from_attributes = True

@@ -322,13 +322,17 @@ function createMovieCard(movie) {
     const posterUrl = getPosterUrl(movie.poster_path);
     const genres = (movie.genres || []).slice(0, 2);
 
+    const ratingDisplay = movie.average_rating
+        ? `<div class="card-star-rating">★ ${movie.average_rating.toFixed(1)}</div>`
+        : (movie.score ? `<div class="card-rating">${Math.round(movie.score * 100)}%</div>` : '');
+
     card.innerHTML = `
         <div class="card-poster">
             ${posterUrl
             ? `<img src="${posterUrl}" alt="${movie.title}" loading="lazy">`
             : '<div style="height:100%;background:#eee;"></div>'
         }
-            <div class="card-rating">${movie.score ? Math.round(movie.score * 100) : 'N/A'}%</div>
+            ${ratingDisplay}
         </div>
         <div class="card-info">
             <h3 class="card-title">${movie.title}</h3>
@@ -336,6 +340,7 @@ function createMovieCard(movie) {
                 <span>${movie.year || 'N/A'}</span>
                 ${genres.map(g => `<span class="card-genre">${g}</span>`).join('')}
             </div>
+            ${movie.review_count ? `<div class="card-review-count">${movie.review_count} bình luận</div>` : ''}
         </div>
     `;
 
@@ -392,9 +397,10 @@ async function renderMoviePage(movieId) {
                         <span>•</span>
                         <span>${movie.genres.map(g => g.name).join(', ')}</span>
                         ${movie.score ? `<span>•</span><span style="color: #46d369; font-weight: bold;">${Math.round(movie.score * 100)}% Match</span>` : ''}
+                        ${movie.average_rating ? `<span>•</span><span style="color: #ffd700; font-weight: bold;">★ ${movie.average_rating.toFixed(1)} (${movie.review_count} đánh giá)</span>` : ''}
                     </div>
                     
-                    <p class="overview" style="font-size: 1.1rem; line-height: 1.6; color: #ddd; margin-bottom: 40px;">
+                    <p class="overview" style="font-size: 1.1rem; line-height: 1.6; color: #333; margin-bottom: 40px;">
                         ${movie.overview || 'Chưa có tóm tắt cho phim này.'}
                     </p>
 
@@ -447,8 +453,7 @@ function renderReviews(movie) {
                 if (!text) return '';
                 return text
                     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                    .replace(/\n/g, '<br>');
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>');
             };
 
             return `
@@ -480,18 +485,44 @@ function renderReviews(movie) {
 
     // Show "Write Review" if logged in
     if (state.user) {
+        // Generate Star Rating Input (10 stars for 1-10 scale, reverse order for CSS hover)
+        let starInputs = '';
+        for (let i = 10; i >= 1; i--) {
+            starInputs += `
+                <input type="radio" id="st${i}" name="rating" value="${i}">
+                <label for="st${i}" title="${i} điểm">★</label>
+            `;
+        }
+
         const formHtml = `
             <div class="write-review">
                 <h3>Viết đánh giá của bạn</h3>
                 <textarea id="reviewContent" placeholder="Bạn nghĩ gì về phim này?"></textarea>
                 <div class="review-actions">
-                    <input type="number" id="reviewRating" min="1" max="10" step="0.5" placeholder="Điểm (1-10)">
+                    <div class="star-rating-input">
+                        ${starInputs}
+                        <span id="rating-score" class="rating-score">?/10</span>
+                    </div>
+                </div>
+                <div style="text-align: right; margin-top: 10px;">
                     <button id="submitReviewBtn" class="btn-primary" onclick="postReview('${movie.id}')">Gửi đánh giá</button>
                 </div>
             </div>
         `;
         // Prepend to list
-        if (elements.reviewsList) elements.reviewsList.insertAdjacentHTML('afterbegin', formHtml);
+        if (elements.reviewsList) {
+            elements.reviewsList.insertAdjacentHTML('afterbegin', formHtml);
+
+            // Add listeners for score update
+            const inputs = document.querySelectorAll('.star-rating-input input');
+            const scoreDisplay = document.getElementById('rating-score');
+            inputs.forEach(input => {
+                input.addEventListener('change', (e) => {
+                    scoreDisplay.textContent = `${e.target.value}/10`;
+                    scoreDisplay.style.color = '#ffd700';
+                });
+            });
+        }
     } else {
         if (elements.reviewsList) {
             elements.reviewsList.insertAdjacentHTML('afterbegin',
@@ -503,9 +534,11 @@ function renderReviews(movie) {
     if (elements.modalReviews) elements.modalReviews.classList.remove('hidden');
 }
 
-async function postReview(movieId) {
+window.postReview = async (movieId) => {
     const content = document.getElementById('reviewContent').value;
-    const rating = document.getElementById('reviewRating').value;
+    // Get checked radio
+    const ratingInput = document.querySelector('input[name="rating"]:checked');
+    const rating = ratingInput ? parseFloat(ratingInput.value) : null;
 
     if (!content) return alert('Vui lòng nhập nội dung!');
 
@@ -516,21 +549,20 @@ async function postReview(movieId) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${state.token}`
             },
-            body: JSON.stringify({ content, rating: parseFloat(rating) })
+            body: JSON.stringify({ content, rating })
         });
 
         if (response.ok) {
             alert('Đánh giá thành công!');
-            openMovieModal(movieId); // Reload
+            window.location.reload();
         } else {
             alert('Lỗi khi gửi đánh giá');
         }
     } catch (e) {
         console.error(e);
+        alert('Lỗi kết nối');
     }
-}
-
-
+};
 
 function closeMovieModal() {
     if (elements.movieModal) elements.movieModal.classList.add('hidden');
@@ -560,6 +592,7 @@ async function handleSearch() {
         console.error('Search error:', error);
     }
 }
+
 
 // ============================================
 // Initialize
