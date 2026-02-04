@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi tiết phim - CineSense</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="container header-inner">
+            <a href="index.html" class="logo">CineSense</a>
+            <nav class="nav-links">
+                <a href="index.html" class="nav-item">Khám phá</a>
+                <a href="#" class="nav-item">Trending</a>
+                <a href="#" class="nav-item">Cộng đồng</a>
+            </nav>
+            <div class="header-actions">
+                <div id="userAuthArea">
+                    <!-- Auth injected here -->
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container" style="margin-top: 100px; margin-bottom: 60px;">
+        <div id="movieDetailContainer" class="movie-detail-page">
+            <!-- Loading State -->
+            <div class="loading-container">
+                <p>Đang tải thông tin phim...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer style="padding: 40px 0; text-align: center; color: #999; font-size: 0.9rem;">
+        <p>© 2026 CineSense. Powered by AI & Semantic Search.</p>
+    </footer>
+
+    <!-- Auth Modal (Reused) -->
+    <div id="authModal" class="modal-overlay hidden">
+        <div class="modal-panel auth-panel">
+            <button class="btn-close" id="closeAuthModal">&times;</button>
+            <div id="loginForm">
+                <h2 style="margin-bottom: 24px; text-align: center;">Đăng nhập</h2>
+                <div class="input-group">
+                    <input type="text" id="loginUsername" class="input-field" placeholder="Tên đăng nhập">
+                </div>
+                <div class="input-group">
+                    <input type="password" id="loginPassword" class="input-field" placeholder="Mật khẩu">
+                </div>
+                <button class="btn-primary" style="width: 100%; padding: 12px;" id="submitLogin">Đăng nhập</button>
+                <div id="loginError" style="color: red; margin-top: 10px; font-size: 0.9rem; display: none;"></div>
+                <p style="margin-top: 16px; text-align: center; font-size: 0.9rem;">
+                    Chưa có tài khoản? <a href="#" id="showRegister"
+                        style="color: var(--color-primary); font-weight: 600;">Đăng ký</a>
+                </p>
+            </div>
+            <div id="registerForm" class="hidden">
+                <h2 style="margin-bottom: 24px; text-align: center;">Đăng ký</h2>
+                <div class="input-group">
+                    <input type="text" id="regUsername" class="input-field" placeholder="Tên đăng nhập">
+                </div>
+                <div class="input-group">
+                    <input type="text" id="regNickname" class="input-field" placeholder="Tên hiển thị (Nickname)">
+                </div>
+                <div class="input-group">
+                    <input type="password" id="regPassword" class="input-field" placeholder="Mật khẩu">
+                </div>
+                <button class="btn-primary" style="width: 100%; padding: 12px;" id="submitRegister">Đăng ký
+                    ngay</button>
+                <div id="regError" style="color: red; margin-top: 10px; font-size: 0.9rem; display: none;"></div>
+                <p style="margin-top: 16px; text-align: center; font-size: 0.9rem;">
+                    Đã có tài khoản? <a href="#" id="showLogin"
+                        style="color: var(--color-primary); font-weight: 600;">Đăng nhập</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

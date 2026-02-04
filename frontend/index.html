@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CineSense - Khám phá thế giới điện ảnh</title>
+    <meta name="description" content="AI Sematic Search for Movies">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+    <!-- 1. Header -->
+    <header class="header">
+        <div class="container header-inner">
+            <a href="#" class="logo">CineSense</a>
+
+            <nav class="nav-links">
+                <a href="#" class="nav-item active">Khám phá</a>
+                <a href="#" class="nav-item">Trending</a>
+                <a href="#" class="nav-item">Cộng đồng</a>
+            </nav>
+
+            <div class="header-actions">
+                <!-- User State (Injected by JS) -->
+                <div id="userAuthArea">
+                    <button class="btn-primary" id="btnLogin">Đăng nhập</button>
+                    <!-- Or User Widget -->
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 2. Hero Section (Visual Anchor) -->
+    <section class="hero"
+        style="background-image: url('https://image.tmdb.org/t/p/original/9PqD3wSIjntyJDBzMNuxuKHwpUD.jpg'); background-size: cover; background-position: center;">
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+            <h1 class="hero-title">Tìm phim theo cảm xúc</h1>
+            <p class="hero-subtitle">Nhập bất kỳ cảm nghĩ, tâm trạng hoặc nội dung bạn muốn xem.</p>
+
+            <div class="hero-search">
+                <input type="text" class="search-input-lg" id="searchInput"
+                    placeholder="Ví dụ: Phim buồn cho ngày mưa...">
+                <button class="search-btn-icon" id="searchBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="hero-hints">
+                <span class="hint-chip" data-query="Phim hại não plot twist">🤯 Hại não</span>
+                <span class="hint-chip" data-query="Phim tình cảm lãng mạn nhẹ nhàng">💕 Lãng mạn</span>
+                <span class="hint-chip" data-query="Phim hành động kịch tính đua xe">🏎️ Hành động</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. Main Content -->
+    <main class="container">
+
+        <!-- Results Header -->
+        <div class="section-header hidden" id="resultsHeader">
+            <h2 class="section-title">Kết quả tìm kiếm: <span id="queryText"
+                    style="color: var(--color-primary);">...</span></h2>
+            <p id="resultsCount" style="color: #9ca3af; margin-top: 4px; font-size: 0.95rem;"></p>
+        </div>
+
+        <!-- Grid -->
+        <div class="grid-movies" id="resultsGrid">
+            <!-- Movie Cards Injected Here -->
+        </div>
+
+        <!-- Default/Loading State -->
+        <div class="loading-container" id="loading">
+            <p>Đang tìm kiếm những bộ phim phù hợp nhất...</p>
+        </div>
+
+        <div class="loading-container hidden" id="noResults">
+            <h3>Không tìm thấy phim nào 😢</h3>
+            <p>Hãy thử từ khóa khác xem sao?</p>
+        </div>
+
+        <div class="loading-container hidden" id="error">
+            <h3 style="color: #e50914;">Đã có lỗi xảy ra ⚠️</h3>
+            <p id="errorMessage">Vui lòng thử lại sau.</p>
+        </div>
+
+    </main>
+
+    <!-- 4. Footer -->
+    <footer style="padding: 40px 0; text-align: center; color: #999; font-size: 0.9rem;">
+        <p>© 2026 CineSense. Powered by AI & Semantic Search.</p>
+    </footer>
+
+    <!-- ================= MODALS ================= -->
+
+    <!-- Movie Detail Modal -->
+    <div id="movieModal" class="modal-overlay hidden">
+        <div class="modal-panel">
+            <button class="btn-close" id="closeModal">&times;</button>
+
+            <div class="modal-left">
+                <img id="modalPoster" src="" alt="" class="modal-poster-lg">
+            </div>
+
+            <div class="modal-right">
+                <div class="modal-header">
+                    <h2 id="modalTitle">Movie Title</h2>
+                    <div class="modal-stats">
+                        <span id="modalYear">2024</span>
+                        <span class="score-badge" id="modalScore">9.0</span>
+                        <span id="modalGenres">Action, Drama</span>
+                    </div>
+                </div>
+
+                <p id="modalOverview" style="line-height: 1.7; color: #444; margin-bottom: 24px;">
+                    Movie overview goes here...
+                </p>
+
+                <div class="modal-reviews">
+                    <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 16px;">Đánh giá & Bình luận</h3>
+                    <div id="reviewsList" style="display: flex; flex-direction: column; gap: 16px;">
+                        <!-- Reviews injected here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="modal-overlay hidden">
+        <div class="modal-panel auth-panel">
+            <button class="btn-close" id="closeAuthModal">&times;</button>
+
+            <!-- Login Form -->
+            <div id="loginForm">
+                <h2 style="margin-bottom: 24px; text-align: center;">Đăng nhập</h2>
+                <div class="input-group">
+                    <input type="text" id="loginUsername" class="input-field" placeholder="Tên đăng nhập">
+                </div>
+                <div class="input-group">
+                    <input type="password" id="loginPassword" class="input-field" placeholder="Mật khẩu">
+                </div>
+                <button class="btn-primary" style="width: 100%; padding: 12px;" id="submitLogin">Đăng nhập</button>
+                <div id="loginError" style="color: red; margin-top: 10px; font-size: 0.9rem; display: none;"></div>
+                <p style="margin-top: 16px; text-align: center; font-size: 0.9rem;">
+                    Chưa có tài khoản? <a href="#" id="showRegister"
+                        style="color: var(--color-primary); font-weight: 600;">Đăng ký</a>
+                </p>
+            </div>
+
+            <!-- Register Form -->
+            <div id="registerForm" class="hidden">
+                <h2 style="margin-bottom: 24px; text-align: center;">Đăng ký</h2>
+                <div class="input-group">
+                    <input type="text" id="regUsername" class="input-field" placeholder="Tên đăng nhập">
+                </div>
+                <div class="input-group">
+                    <input type="text" id="regNickname" class="input-field" placeholder="Tên hiển thị (Nickname)">
+                </div>
+                <div class="input-group">
+                    <input type="password" id="regPassword" class="input-field" placeholder="Mật khẩu">
+                </div>
+                <button class="btn-primary" style="width: 100%; padding: 12px;" id="submitRegister">Đăng ký
+                    ngay</button>
+                <div id="regError" style="color: red; margin-top: 10px; font-size: 0.9rem; display: none;"></div>
+                <p style="margin-top: 16px; text-align: center; font-size: 0.9rem;">
+                    Đã có tài khoản? <a href="#" id="showLogin"
+                        style="color: var(--color-primary); font-weight: 600;">Đăng nhập</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,49 @@
+# CineSense Docker Infrastructure
+# Phase 1: Data Engineering - PostgreSQL & Qdrant Setup
+version: '3.8'
+
+services:
+  # PostgreSQL - Metadata Storage (Single Source of Truth)
+  # Stores: movies, reviews, genres tables
+  postgres:
+    image: postgres:15-alpine
+    container_name: cinesense-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cinesense}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cinesense_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-cinesense_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cinesense} -d ${POSTGRES_DB:-cinesense_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Qdrant - Vector Database for Semantic Search
+  # Stores: 384-dim embeddings of movie reviews
+  # Model: all-MiniLM-L6-v2 produces 384-dimensional vectors
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: cinesense-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"   # REST API
+      - "6334:6334"   # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__LOG_LEVEL: INFO
+
+volumes:
+  postgres_data:
+    driver: local
+  qdrant_data:
+    driver: local
+
+networks:
+  default:
+    name: cinesense-network
