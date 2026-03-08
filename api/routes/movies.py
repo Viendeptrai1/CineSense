@@ -2,14 +2,13 @@
 CineSense API - Movies Routes
 =============================
 
-CRUD endpoints for movie data.
+Discovery-only movie endpoints backed by the English-first core schema.
 """
 
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from api.dependencies import get_db
@@ -20,7 +19,7 @@ from api.schemas import (
     ReviewSchema,
     GenreSchema,
 )
-from etl_pipeline.db_postgres import Movie, Review, Genre
+from etl_pipeline.db_postgres import CoreMovie, CoreReview, CoreGenre
 
 
 router = APIRouter(prefix="/movies", tags=["Movies"])
@@ -30,42 +29,29 @@ router = APIRouter(prefix="/movies", tags=["Movies"])
 async def list_movies(
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
-    genre: Optional[str] = Query(default=None, description="Filter by genre name"),
-    year: Optional[int] = Query(default=None, description="Filter by release year"),
-    search: Optional[str] = Query(default=None, description="Search title (simple text match)"),
     db: Session = Depends(get_db),
 ) -> MovieListResponse:
     """
-    List movies with pagination and filters.
-    
-    This is a simple list endpoint for browsing movies.
-    For semantic "vibe" search, use POST /search instead.
+    List all movies from the English-first core catalog.
     """
-    # Base query with eager loading of genres
-    query = db.query(Movie).options(joinedload(Movie.genres))
-    
-    # Apply filters
-    if genre:
-        query = query.join(Movie.genres).filter(Genre.name.ilike(f"%{genre}%"))
-    
-    if year:
-        query = query.filter(
-            func.extract('year', Movie.release_date) == year
-        )
-    
-    if search:
-        query = query.filter(Movie.title.ilike(f"%{search}%"))
-    
-    # Get total count
-    total = query.distinct().count()
-    
-    # Apply pagination
+    query = db.query(CoreMovie).options(
+        joinedload(CoreMovie.genres),
+        joinedload(CoreMovie.reviews),
+    )
+
+    total = query.count()
     offset = (page - 1) * page_size
-    movies = query.distinct().order_by(Movie.created_at.desc()).offset(offset).limit(page_size).all()
-    
-    # Convert to schema
+    movies = (
+        query
+        .order_by(CoreMovie.created_at.desc())
+        .offset(offset)
+        .limit(page_size)
+        .all()
+    )
+
     movie_schemas = []
     for movie in movies:
+        ratings = [review.rating for review in movie.reviews if review.rating is not None]
         movie_schemas.append(MovieSchema(
             id=str(movie.id),
             tmdb_id=movie.tmdb_id,
@@ -75,9 +61,9 @@ async def list_movies(
             poster_path=movie.poster_path,
             genres=[GenreSchema(id=g.id, name=g.name) for g in movie.genres],
             review_count=len(movie.reviews),
-            average_rating=sum(r.rating for r in movie.reviews if r.rating)/len([r for r in movie.reviews if r.rating]) if any(r.rating for r in movie.reviews) else None
+            average_rating=(sum(ratings) / len(ratings)) if ratings else None,
         ))
-    
+
     return MovieListResponse(
         total=total,
         page=page,
@@ -101,16 +87,15 @@ async def get_movie(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid movie ID format")
     
-    # Query movie with reviews and genres
-    movie = db.query(Movie).options(
-        joinedload(Movie.genres),
-        joinedload(Movie.reviews)
-    ).filter(Movie.id == uuid).first()
-    
+    movie = db.query(CoreMovie).options(
+        joinedload(CoreMovie.genres),
+        joinedload(CoreMovie.reviews),
+    ).filter(CoreMovie.id == uuid).first()
+
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
-    
-    # Convert to schema
+
+    ratings = [review.rating for review in movie.reviews if review.rating is not None]
     return MovieDetailSchema(
         id=str(movie.id),
         tmdb_id=movie.tmdb_id,
@@ -125,14 +110,15 @@ async def get_movie(
                 content=r.content,
                 source=r.source,
                 rating=r.rating,
-                user=r.user.nickname if r.user else None,
-                author_name=r.author_name if r.author_name else (r.user.nickname if r.user else r.source),
-                author_avatar_url=r.author_avatar_url or (r.user.avatar_url if r.user else None),
-                likes_count=r.likes_count,
+                user=None,
+                author_name=r.author_name or r.author_username or r.source,
+                author_avatar_url=r.author_avatar_url,
+                likes_count=0,
                 created_at=r.created_at
             ) for r in sorted(movie.reviews, key=lambda x: x.created_at, reverse=True)
         ],
-        review_count=len(movie.reviews)
+        review_count=len(movie.reviews),
+        average_rating=(sum(ratings) / len(ratings)) if ratings else None,
     )
 
 @router.get("/genres/list", response_model=List[GenreSchema])
@@ -142,5 +128,5 @@ async def list_genres(
     """
     List all available genres.
     """
-    genres = db.query(Genre).order_by(Genre.name).all()
+    genres = db.query(CoreGenre).order_by(CoreGenre.name).all()
     return [GenreSchema(id=g.id, name=g.name) for g in genres]

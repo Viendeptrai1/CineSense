@@ -1,6 +1,13 @@
-# 🎬 CineSense - Semantic Movie Recommender
+# CineSense
 
-CineSense là một hệ thống gợi ý và tìm kiếm phim theo "vibe" (ngữ nghĩa) sử dụng công nghệ Vector Search và AI Multilingual Embeddings. Bạn có thể tìm thấy bộ phim phù hợp với tâm trạng chỉ bằng cách nhập mô tả tự nhiên như: *"phim buồn cho ngày mưa"* hay *"feel good movies with happy endings"*.
+CineSense hiện đang chạy ở chế độ `discovery-only`: frontend chỉ hiển thị toàn bộ phim có trong PostgreSQL với phân trang. Search và vector serving đang được tắt tạm thời để ưu tiên làm sạch lại dữ liệu tiếng Anh trong Postgres, chuẩn bị cho pipeline embedding và recommendation ở giai đoạn tiếp theo.
+
+## Trạng thái hiện tại
+
+- Frontend: một trang catalog phân trang từ PostgreSQL
+- Backend: FastAPI chỉ phục vụ discovery runtime
+- ETL: ưu tiên nạp metadata/review tiếng Anh vào Postgres core schema
+- Qdrant / semantic search: tạm tắt khỏi runtime hiện tại
 
 ---
 
@@ -72,7 +79,7 @@ CineSen/
 
 ## 🏃 Hướng dẫn chạy ứng dụng (Quick Start)
 
-Để khởi động toàn bộ hệ thống CineSense, bạn thực hiện 3 bước sau:
+Để khởi động toàn bộ hệ thống CineSense hiện tại, bạn thực hiện 3 bước sau:
 
 1.  **Khởi động Cơ sở dữ liệu:**
     ```bash
@@ -89,6 +96,11 @@ CineSen/
     python3 -m http.server 3000
     ```
 Sau đó truy cập địa chỉ: [http://localhost:3000](http://localhost:3000)
+
+Lưu ý:
+- Discovery page hiện không có search box hoạt động
+- Nguồn dữ liệu runtime là PostgreSQL core schema
+- Semantic search sẽ được nối lại sau khi pipeline embedding mới hoàn tất
 
 ---
 

@@ -728,3 +728,189 @@ button {
     object-fit: cover;
     flex-shrink: 0;
 }
+
+/* ============================================
+   Pagination Controls
+   ============================================ */
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 40px 0 60px;
+}
+
+.page-btn {
+    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    background: white;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-main);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.page-btn:hover:not(.disabled) {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(229, 9, 20, 0.3);
+}
+
+.page-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.page-numbers {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.page-num {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    background: white;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-main);
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.page-num:hover {
+    background: var(--color-surface);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.page-num.active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+    box-shadow: 0 2px 8px rgba(229, 9, 20, 0.3);
+}
+
+.page-ellipsis {
+    width: 40px;
+    text-align: center;
+    color: var(--color-text-sub);
+    font-weight: 600;
+}
+
+.card-review-count {
+    font-size: 0.8rem;
+    color: var(--color-text-sub);
+    margin-top: 4px;
+}
+
+.card-overview {
+    margin-top: 10px;
+    font-size: 0.88rem;
+    color: var(--color-text-sub);
+    line-height: 1.45;
+}
+
+.movie-detail-layout {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 40px;
+    align-items: start;
+}
+
+.detail-poster-column {
+    position: sticky;
+    top: 100px;
+}
+
+.detail-poster-card {
+    background: white;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-soft);
+    border: 1px solid var(--color-border);
+}
+
+.detail-poster-image {
+    width: 100%;
+    display: block;
+}
+
+.detail-poster-placeholder {
+    min-height: 460px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+    color: var(--color-text-sub);
+    font-weight: 600;
+}
+
+.detail-back-link {
+    display: inline-flex;
+    margin-top: 16px;
+}
+
+.detail-hero {
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-soft);
+    padding: 32px;
+}
+
+.detail-title {
+    font-size: 2.5rem;
+    line-height: 1.1;
+    margin-bottom: 12px;
+}
+
+.detail-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    color: var(--color-text-sub);
+    margin-bottom: 24px;
+    font-size: 0.95rem;
+}
+
+.detail-overview {
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--color-text-main);
+}
+
+.detail-section-title {
+    font-size: 1.4rem;
+    margin-bottom: 16px;
+}
+
+.detail-reviews-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+@media (max-width: 960px) {
+    .movie-detail-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .detail-poster-column {
+        position: static;
+        max-width: 360px;
+    }
+
+    .detail-title {
+        font-size: 2rem;
+    }
+}

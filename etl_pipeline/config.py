@@ -98,7 +98,7 @@ class TMDBSettings(BaseSettings):
     
     api_key: str = Field(default="", description="TMDB API key")
     base_url: str = Field(default="https://api.themoviedb.org/3", description="TMDB API base URL")
-    language: str = Field(default="vi-VN", description="Language for metadata (Vietnamese)")
+    language: str = Field(default="en-US", description="Language for metadata (English)")
     pages_to_fetch: int = Field(default=50, description="Number of pages to fetch (20 movies/page)")
     
     @property

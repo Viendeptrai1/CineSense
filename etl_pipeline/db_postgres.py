@@ -24,6 +24,7 @@ from sqlalchemy import (
     Column,
     String,
     Integer,
+    Float,
     Text,
     Date,
     DateTime,
@@ -67,6 +68,14 @@ movie_genres = Table(
     Column("genre_id", Integer, ForeignKey("genres.id"), primary_key=True),
 )
 
+# Parallel core schema used for the discovery-only, English-first app.
+core_movie_genres = Table(
+    "core_movie_genres",
+    Base.metadata,
+    Column("movie_id", UUID(as_uuid=True), ForeignKey("core_movies.id"), primary_key=True),
+    Column("genre_id", Integer, ForeignKey("core_genres.id"), primary_key=True),
+)
+
 
 # ============================================
 # ORM Models
@@ -102,16 +111,26 @@ class Movie(Base):
         index=True,
         comment="The Movie Database external ID"
     )
-    title: Mapped[str] = mapped_column(
+    title_vi: Mapped[str] = mapped_column(
         String(500),
         nullable=False,
         index=True,
-        comment="Movie title"
+        comment="Movie title in Vietnamese"
     )
-    overview: Mapped[Optional[str]] = mapped_column(
+    title_en: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Movie title in English"
+    )
+    overview_vi: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
-        comment="Plot synopsis"
+        comment="Plot synopsis in Vietnamese"
+    )
+    overview_en: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Plot synopsis in English"
     )
     release_date: Mapped[Optional[date]] = mapped_column(
         Date,
@@ -146,6 +165,30 @@ class Movie(Base):
         secondary=movie_genres,
         back_populates="movies"
     )
+    
+    @property
+    def title(self) -> str:
+        """Backward compatibility for existing Pydantic schemas"""
+        return self.title_en or self.title_vi
+
+    @title.setter
+    def title(self, value: str) -> None:
+        """Allow legacy code paths to set the canonical title."""
+        self.title_en = value
+        if not self.title_vi:
+            self.title_vi = value
+
+    @property
+    def overview(self) -> Optional[str]:
+        """Backward compatibility for existing Pydantic schemas"""
+        return self.overview_en or self.overview_vi
+
+    @overview.setter
+    def overview(self, value: Optional[str]) -> None:
+        """Allow legacy code paths to set the canonical overview."""
+        self.overview_en = value
+        if not self.overview_vi:
+            self.overview_vi = value
     
     def __repr__(self) -> str:
         return f"<Movie(id={self.id}, title='{self.title}')>"
@@ -184,10 +227,15 @@ class Review(Base):
         index=True,
         comment="Reference to parent movie"
     )
-    content: Mapped[str] = mapped_column(
+    content_en: Mapped[str] = mapped_column(
         Text,
         nullable=False,
-        comment="Review text content"
+        comment="Review text content in English"
+    )
+    content_vi: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Review text content in Vietnamese"
     )
     source: Mapped[str] = mapped_column(
         String(100),
@@ -232,6 +280,18 @@ class Review(Base):
     movie: Mapped["Movie"] = relationship("Movie", back_populates="reviews")
     user: Mapped["User"] = relationship("User", back_populates="reviews")
     likes: Mapped[List["ReviewLike"]] = relationship("ReviewLike", back_populates="review")
+
+    @property
+    def content(self) -> str:
+        """Backward compatibility for older code paths."""
+        return self.content_en or self.content_vi or ""
+
+    @content.setter
+    def content(self, value: str) -> None:
+        """Allow legacy code to keep assigning review.content."""
+        self.content_en = value
+        if not self.content_vi:
+            self.content_vi = value
     
     def __repr__(self) -> str:
         return f"<Review(id={self.id}, movie_id={self.movie_id}, source='{self.source}')>"
@@ -377,6 +437,213 @@ class Genre(Base):
     
     def __repr__(self) -> str:
         return f"<Genre(id={self.id}, name='{self.name}')>"
+
+
+class CoreMovie(Base):
+    """English-first movie metadata used by the simplified discovery app."""
+
+    __tablename__ = "core_movies"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        comment="Stable movie UUID copied from legacy movies table",
+    )
+    tmdb_id: Mapped[int] = mapped_column(
+        Integer,
+        unique=True,
+        nullable=False,
+        index=True,
+        comment="TMDB external identifier",
+    )
+    title: Mapped[str] = mapped_column(
+        String(500),
+        nullable=False,
+        index=True,
+        comment="Canonical English title",
+    )
+    original_title: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Original title when known",
+    )
+    overview: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Canonical English overview",
+    )
+    release_date: Mapped[Optional[date]] = mapped_column(
+        Date,
+        nullable=True,
+        comment="Theatrical release date",
+    )
+    poster_path: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="TMDB poster image path",
+    )
+    backdrop_path: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="TMDB backdrop image path",
+    )
+    popularity: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        comment="TMDB popularity score",
+    )
+    vote_average: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        comment="TMDB vote average",
+    )
+    vote_count: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="TMDB vote count",
+    )
+    original_language: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="Original language code",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        comment="Record creation timestamp",
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        comment="Last modification timestamp",
+    )
+
+    reviews: Mapped[List["CoreReview"]] = relationship(
+        "CoreReview",
+        back_populates="movie",
+        cascade="all, delete-orphan",
+    )
+    genres: Mapped[List["CoreGenre"]] = relationship(
+        "CoreGenre",
+        secondary=core_movie_genres,
+        back_populates="movies",
+    )
+
+    def __repr__(self) -> str:
+        return f"<CoreMovie(id={self.id}, title='{self.title}')>"
+
+
+class CoreGenre(Base):
+    """English genre taxonomy for discovery and training data."""
+
+    __tablename__ = "core_genres"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=False,
+        comment="Genre identifier copied from TMDB",
+    )
+    name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        unique=True,
+        comment="Canonical English genre name",
+    )
+
+    movies: Mapped[List["CoreMovie"]] = relationship(
+        "CoreMovie",
+        secondary=core_movie_genres,
+        back_populates="genres",
+    )
+
+    def __repr__(self) -> str:
+        return f"<CoreGenre(id={self.id}, name='{self.name}')>"
+
+
+class CoreReview(Base):
+    """External review corpus kept separate from any future social features."""
+
+    __tablename__ = "core_reviews"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        comment="Stable review UUID copied from legacy reviews table when available",
+    )
+    movie_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("core_movies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Reference to the parent core movie",
+    )
+    external_review_id: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        unique=True,
+        comment="External source review ID (TMDB review id, etc.)",
+    )
+    source: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        default="tmdb",
+        comment="External review source",
+    )
+    language: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="en",
+        comment="Review language code",
+    )
+    author_username: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="External author username",
+    )
+    author_name: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="External author display name",
+    )
+    author_avatar_url: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="External author avatar URL",
+    )
+    content: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Canonical English review text",
+    )
+    rating: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        comment="Numeric rating if supplied by source",
+    )
+    source_created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Original review timestamp from source",
+    )
+    source_url: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Original source URL",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        comment="Record creation timestamp",
+    )
+
+    movie: Mapped["CoreMovie"] = relationship("CoreMovie", back_populates="reviews")
+
+    def __repr__(self) -> str:
+        return f"<CoreReview(id={self.id}, movie_id={self.movie_id}, source='{self.source}')>"
 
 
 # ============================================

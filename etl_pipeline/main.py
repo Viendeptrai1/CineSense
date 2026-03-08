@@ -6,8 +6,8 @@ Entry point for the ETL (Extract, Transform, Load) pipeline.
 
 Pipeline Flow:
 1. EXTRACT: Fetch movies/reviews from TMDB API (or mock data for testing)
-2. TRANSFORM: Clean text and generate embeddings
-3. LOAD: Upsert to PostgreSQL and Qdrant
+2. TRANSFORM: Normalize English metadata and review corpus
+3. LOAD: Upsert to PostgreSQL core tables
 
 Usage:
     # Run with mock data (for testing)
@@ -34,13 +34,10 @@ from .db_postgres import (
     get_session,
     get_engine,
     Base,
-    Movie,
-    Review,
-    Genre,
-    create_or_get_genre,
+    CoreMovie,
+    CoreReview,
+    CoreGenre,
 )
-from .db_qdrant import init_qdrant, upsert_review_vectors, get_collection_info
-from .embedder import embed_text, preprocess_text, embed_texts
 from .crawler import TMDBClient, TMDBMovie, TMDBReview, TMDBGenre
 
 
@@ -48,23 +45,23 @@ from .crawler import TMDBClient, TMDBMovie, TMDBReview, TMDBGenre
 # ETL Pipeline - TMDB Data Ingestion
 # ============================================
 
-def load_genres_from_tmdb(session, client: TMDBClient) -> Dict[int, Genre]:
+def load_genres_from_tmdb(session, client: TMDBClient) -> Dict[int, CoreGenre]:
     """
     Fetch and load genres from TMDB to PostgreSQL.
     
     Returns:
-        Dict mapping TMDB genre ID to Genre ORM object
+        Dict mapping TMDB genre ID to CoreGenre ORM object
     """
     tmdb_genres = client.get_genres()
     genre_map = {}
     
     for tmdb_genre in tmdb_genres:
         # Use TMDB genre ID as our genre ID for consistency
-        existing = session.query(Genre).filter(Genre.id == tmdb_genre.id).first()
+        existing = session.query(CoreGenre).filter(CoreGenre.id == tmdb_genre.id).first()
         if existing:
             genre_map[tmdb_genre.id] = existing
         else:
-            genre = Genre(id=tmdb_genre.id, name=tmdb_genre.name)
+            genre = CoreGenre(id=tmdb_genre.id, name=tmdb_genre.name)
             session.add(genre)
             session.flush()
             genre_map[tmdb_genre.id] = genre
@@ -77,75 +74,83 @@ def process_tmdb_movie(
     session,
     tmdb_movie: TMDBMovie,
     tmdb_reviews: List[TMDBReview],
-    genre_map: Dict[int, Genre],
+    genre_map: Dict[int, CoreGenre],
 ) -> Optional[Dict[str, Any]]:
     """
     Process a single movie and its reviews into PostgreSQL.
     
     Returns:
-        Dict with movie_id, review_ids, genre_ids, year for Qdrant loading
+        Dict with inserted movie/review counts for reporting
     """
-    # Check if movie already exists (by TMDB ID)
-    existing = session.query(Movie).filter(Movie.tmdb_id == tmdb_movie.tmdb_id).first()
-    if existing:
-        logger.debug(f"Movie already exists: {tmdb_movie.title}")
-        return None
-    
-    # Get genre objects
+    existing = session.query(CoreMovie).filter(CoreMovie.tmdb_id == tmdb_movie.tmdb_id).first()
+
     genre_objects = [
         genre_map[gid] for gid in tmdb_movie.genre_ids
         if gid in genre_map
     ]
-    
-    # Create movie
-    movie = Movie(
+
+    movie_created = existing is None
+    movie = existing or CoreMovie(
         tmdb_id=tmdb_movie.tmdb_id,
-        title=tmdb_movie.title,
-        overview=tmdb_movie.overview,
-        release_date=tmdb_movie.release_date,
-        poster_path=tmdb_movie.poster_path,
-        genres=genre_objects,
+        title=tmdb_movie.title or tmdb_movie.original_title or "Unknown",
     )
+    movie.title = tmdb_movie.title or tmdb_movie.original_title or movie.title
+    movie.original_title = tmdb_movie.original_title or tmdb_movie.title
+    movie.overview = tmdb_movie.overview or None
+    movie.release_date = tmdb_movie.release_date
+    movie.poster_path = tmdb_movie.poster_path
+    movie.backdrop_path = tmdb_movie.backdrop_path
+    movie.popularity = tmdb_movie.popularity
+    movie.vote_average = tmdb_movie.vote_average
+    movie.vote_count = tmdb_movie.vote_count
+    movie.genres = genre_objects
     session.add(movie)
     session.flush()
-    
-    # Create reviews
-    review_ids = []
-    review_contents = []
-    review_ratings = []
-    
+
+    existing_review_ids = {
+        review_id
+        for (review_id,) in session.query(CoreReview.external_review_id)
+        .filter(CoreReview.movie_id == movie.id, CoreReview.external_review_id.is_not(None))
+        .all()
+    }
+    reviews_inserted = 0
+
     for tmdb_review in tmdb_reviews:
-        # Skip empty reviews
         if not tmdb_review.content or len(tmdb_review.content.strip()) < 20:
             continue
-        
-        review = Review(
+
+        if tmdb_review.tmdb_id in existing_review_ids:
+            continue
+
+        source_created_at = None
+        if tmdb_review.created_at:
+            try:
+                source_created_at = date.fromisoformat(tmdb_review.created_at[:10])
+            except ValueError:
+                source_created_at = None
+
+        review = CoreReview(
+            id=uuid.uuid4(),
             movie_id=movie.id,
-            content=tmdb_review.content,
+            external_review_id=tmdb_review.tmdb_id,
             source="tmdb",
-            rating=tmdb_review.rating,
+            language="en",
+            author_username=tmdb_review.author,
             author_name=tmdb_review.author_name,
-            author_avatar_url=f"https://image.tmdb.org/t/p/original{tmdb_review.avatar_path}" if tmdb_review.avatar_path else None
+            author_avatar_url=f"https://image.tmdb.org/t/p/original{tmdb_review.avatar_path}" if tmdb_review.avatar_path else None,
+            content=tmdb_review.content,
+            rating=tmdb_review.rating,
+            source_created_at=source_created_at,
+            source_url=tmdb_review.url,
         )
         session.add(review)
-        session.flush()
-        
-        review_ids.append(str(review.id))
-        review_contents.append(tmdb_review.content)
-        review_ratings.append(tmdb_review.rating)
-    
-    if not review_ids:
-        logger.debug(f"No valid reviews for: {tmdb_movie.title}")
-        return None
-    
+        reviews_inserted += 1
+
     return {
         "movie_id": str(movie.id),
         "movie_title": tmdb_movie.title,
-        "review_ids": review_ids,
-        "review_contents": review_contents,
-        "review_ratings": review_ratings,
-        "genre_ids": [g.id for g in genre_objects],
-        "year": tmdb_movie.release_date.year if tmdb_movie.release_date else 2000,
+        "movie_created": movie_created,
+        "reviews_inserted": reviews_inserted,
     }
 
 
@@ -154,53 +159,11 @@ def embed_and_load_reviews(
     batch_size: int = 32,
 ) -> int:
     """
-    Generate embeddings for reviews and load to Qdrant.
-    
-    Uses batch embedding for efficiency.
-    
-    Returns:
-        Number of vectors upserted
+    Placeholder kept for backwards compatibility while vector serving is disabled.
     """
-    all_vectors = []
-    
-    for movie_data in movie_data_list:
-        movie_id = movie_data["movie_id"]
-        movie_title = movie_data["movie_title"]
-        review_ids = movie_data["review_ids"]
-        review_contents = movie_data["review_contents"]
-        review_ratings = movie_data["review_ratings"]
-        genre_ids = movie_data["genre_ids"]
-        year = movie_data["year"]
-        
-        # Preprocess all review contents
-        clean_contents = [preprocess_text(content) for content in review_contents]
-        
-        # Batch embed
-        vectors = embed_texts(clean_contents, preprocess=False, show_progress=False)
-        
-        # Build Qdrant points
-        for i, (review_id, vector, rating) in enumerate(zip(review_ids, vectors, review_ratings)):
-            point_data = {
-                "id": review_id,
-                "vector": vector,
-                "payload": {
-                    "movie_id": movie_id,
-                    "movie_title": movie_title,
-                    "rating": rating or 0.0,
-                    "year": year,
-                    "genre_ids": [str(gid) for gid in genre_ids],
-                    "source": "tmdb",
-                },
-            }
-            all_vectors.append(point_data)
-    
-    # Upsert in batches
-    if all_vectors:
-        for i in range(0, len(all_vectors), batch_size):
-            batch = all_vectors[i:i+batch_size]
-            upsert_review_vectors(batch)
-    
-    return len(all_vectors)
+    del movie_data_list
+    del batch_size
+    return 0
 
 
 def run_tmdb_etl_pipeline(
@@ -220,7 +183,7 @@ def run_tmdb_etl_pipeline(
     """
     logger.info("🚀 Starting CineSense ETL Pipeline (TMDB Mode)")
     logger.info(f"   Pages to fetch: {pages} (~{pages * 20} movies)")
-    logger.info(f"   Embedding Model: {settings.embedding.model}")
+    logger.info("   Mode: PostgreSQL core schema only")
     
     # Initialize databases
     if reset_db:
@@ -228,12 +191,9 @@ def run_tmdb_etl_pipeline(
         engine = get_engine()
         Base.metadata.drop_all(engine)
         init_database()
-        # Note: We might want to clear Qdrant too, but it handles upserts gracefully
     else:
         logger.info("📦 Initializing databases...")
         init_database()
-
-    init_qdrant()
     
     # Start TMDB client
     with TMDBClient() as client:
@@ -247,7 +207,6 @@ def run_tmdb_etl_pipeline(
             
             # Process movies in batches
             logger.info("🎬 Fetching movies and reviews from TMDB...")
-            movie_data_batch = []
             total_movies = 0
             total_reviews = 0
             
@@ -267,27 +226,15 @@ def run_tmdb_etl_pipeline(
                     )
                     
                     if movie_data:
-                        movie_data_batch.append(movie_data)
-                        total_movies += 1
-                        total_reviews += len(movie_data["review_ids"])
+                        total_movies += 1 if movie_data["movie_created"] else 0
+                        total_reviews += movie_data["reviews_inserted"]
                     
                     # Commit batch
-                    if len(movie_data_batch) >= commit_batch_size:
+                    if (total_movies + total_reviews) and (total_movies + total_reviews) % commit_batch_size == 0:
                         session.commit()
-                        logger.info(f"🔮 Embedding {len(movie_data_batch)} movies...")
-                        vectors_count = embed_and_load_reviews(movie_data_batch)
-                        logger.info(f"   → {vectors_count} vectors upserted")
-                        movie_data_batch = []
                 
                 logger.info(f"📊 Progress: Page {page}/{pages} | Movies: {total_movies} | Reviews: {total_reviews}")
-            
-            # Final batch
-            if movie_data_batch:
-                session.commit()
-                logger.info(f"🔮 Embedding final batch of {len(movie_data_batch)} movies...")
-                vectors_count = embed_and_load_reviews(movie_data_batch)
-                logger.info(f"   → {vectors_count} vectors upserted")
-            
+
             session.commit()
             
         except Exception as e:
@@ -301,14 +248,7 @@ def run_tmdb_etl_pipeline(
     logger.info("📊 Final Statistics:")
     logger.info(f"   Total Movies: {total_movies}")
     logger.info(f"   Total Reviews: {total_reviews}")
-    
-    try:
-        qdrant_info = get_collection_info()
-        logger.info(f"   Qdrant Vectors: {qdrant_info.get('points_count', 'N/A')}")
-    except Exception as e:
-        logger.warning(f"   Could not fetch Qdrant stats: {e}")
-    
-    logger.success("✅ TMDB ETL Pipeline completed successfully!")
+    logger.success("✅ PostgreSQL core ETL completed successfully!")
 
 
 # ============================================
@@ -375,12 +315,11 @@ def generate_mock_data() -> List[MockMovie]:
 def run_mock_etl_pipeline() -> None:
     """Execute ETL pipeline with mock data for testing."""
     logger.info("🚀 Starting CineSense ETL Pipeline (Mock Mode)")
-    logger.info(f"   Embedding Model: {settings.embedding.model}")
+    logger.info("   Mode: PostgreSQL core schema only")
     
     # Initialize databases
     logger.info("📦 Initializing databases...")
     init_database()
-    init_qdrant()
     
     # Generate mock data
     logger.info("🎬 Generating mock movie data...")
@@ -392,14 +331,19 @@ def run_mock_etl_pipeline() -> None:
     try:
         for mock_movie in mock_movies:
             # Create genres
-            genre_objects = [
-                create_or_get_genre(session, name)
-                for name in mock_movie.genres
-            ]
+            genre_objects = []
+            for index, name in enumerate(mock_movie.genres, start=1):
+                genre = session.query(CoreGenre).filter(CoreGenre.name == name).first()
+                if genre is None:
+                    genre = CoreGenre(id=1000 + index, name=name)
+                    session.add(genre)
+                    session.flush()
+                genre_objects.append(genre)
             
             # Create movie
-            movie = Movie(
+            movie = CoreMovie(
                 title=mock_movie.title,
+                original_title=mock_movie.title,
                 overview=mock_movie.overview,
                 release_date=mock_movie.release_date,
                 poster_path=mock_movie.poster_path,
@@ -409,41 +353,20 @@ def run_mock_etl_pipeline() -> None:
             session.flush()
             
             # Create reviews
-            review_ids = []
-            review_contents = []
-            review_ratings = []
-            
             for mock_review in mock_movie.reviews:
-                review = Review(
+                review = CoreReview(
                     movie_id=movie.id,
                     content=mock_review.content,
                     source=mock_review.source,
+                    language="en",
                     rating=mock_review.rating,
                 )
                 session.add(review)
                 session.flush()
-                review_ids.append(str(review.id))
-                review_contents.append(mock_review.content)
-                review_ratings.append(mock_review.rating)
             
-            movie_data_list.append({
-                "movie_id": str(movie.id),
-                "movie_title": mock_movie.title,
-                "review_ids": review_ids,
-                "review_contents": review_contents,
-                "review_ratings": review_ratings,
-                "genre_ids": [g.id for g in genre_objects],
-                "year": mock_movie.release_date.year,
-            })
-            
-            logger.info(f"Loaded: {mock_movie.title} ({len(review_ids)} reviews)")
+            logger.info(f"Loaded: {mock_movie.title} ({len(mock_movie.reviews)} reviews)")
         
         session.commit()
-        
-        # Embed and load to Qdrant
-        logger.info("🔮 Generating embeddings...")
-        vectors_count = embed_and_load_reviews(movie_data_list)
-        logger.info(f"   → {vectors_count} vectors upserted")
         
     except Exception as e:
         session.rollback()
