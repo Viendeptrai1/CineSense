@@ -26,7 +26,7 @@ services:
 
   # Qdrant - Vector Database for Semantic Search
   # Stores: 384-dim embeddings of movie reviews
-  # Model: all-MiniLM-L6-v2 produces 384-dimensional vectors
+  # Model: paraphrase-multilingual-MiniLM-L12-v2 (canonical project spec)
   qdrant:
     image: qdrant/qdrant:latest
     container_name: cinesense-qdrant

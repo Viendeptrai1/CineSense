@@ -10,7 +10,7 @@ Architecture Notes:
 - Payload includes movie_id for joining back to PostgreSQL
 
 Vector Configuration:
-- Model: all-MiniLM-L6-v2
+- Model: paraphrase-multilingual-MiniLM-L12-v2 (canonical project default)
 - Dimension: 384
 - Distance: Cosine Similarity (normalized dot product)
 """
@@ -82,7 +82,7 @@ def create_collection(
     Create Qdrant collection for movie reviews.
     
     Collection Configuration:
-    - Vectors: 384 dimensions (all-MiniLM-L6-v2)
+    - Vectors: 384 dimensions (paraphrase-multilingual-MiniLM-L12-v2)
     - Distance: Cosine similarity
     - Optimizers: Default settings with indexing threshold
     

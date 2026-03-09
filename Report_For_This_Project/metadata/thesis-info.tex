@@ -1,0 +1,31 @@
+\newcommand{\StudentNames}{Nhóm thực hiện dự án CineSense}
+\newcommand{\StudentIds}{Sẽ cập nhật theo danh sách chính thức}
+\newcommand{\AdvisorName}{Sẽ cập nhật theo phân công học phần}
+\newcommand{\FacultyName}{Khoa Công nghệ Thông tin}
+\newcommand{\SchoolName}{Trường Đại học}
+\newcommand{\ThesisTitle}{Xây dựng hệ thống gợi ý phim dựa trên biểu diễn ngữ nghĩa từ metadata và review tiếng Anh}
+
+\newcommand{\makethesistitle}{
+    \begin{titlepage}
+        \centering
+        {\large \SchoolName \par}
+        \vspace{0.5cm}
+        {\large \FacultyName \par}
+        \vspace{2cm}
+        {\Large \bfseries BÁO CÁO ĐỒ ÁN CUỐI KỲ\par}
+        \vspace{0.5cm}
+        {\large Môn học: Xử lý ngôn ngữ tự nhiên\par}
+        \vspace{1.5cm}
+        {\LARGE \bfseries \ThesisTitle \par}
+        \vspace{1.5cm}
+        \begin{tabular}{>{\bfseries}p{4cm}p{9cm}}
+            Tên dự án & \ProjectName \\
+            Phạm vi hiện tại & \CurrentScope \\
+            Nhóm thực hiện & \StudentNames \\
+            MSSV & \StudentIds \\
+            Giảng viên & \AdvisorName \\
+        \end{tabular}
+        \vfill
+        {\large \today \par}
+    \end{titlepage}
+}

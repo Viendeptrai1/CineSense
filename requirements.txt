@@ -23,6 +23,9 @@ lxml>=5.1.0
 # Data Processing
 numpy>=1.26.0
 pandas>=2.0.0
+scipy
+scikit-learn
+gensim
 
 # Utilities
 python-dotenv>=1.0.0

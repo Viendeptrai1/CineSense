@@ -1,0 +1,58 @@
+\chapter{Demo ứng dụng}
+\chaptergoal{Trình bày cách chuyển kết quả nghiên cứu thành một ứng dụng có thể sử dụng, trong đó recommendation được tích hợp theo hướng ổn định và có phương án dự phòng khi artifact chưa sẵn sàng.}
+
+\section{Vai trò của lớp ứng dụng trong đề tài}
+Trong bối cảnh đồ án NLP, giao diện không chỉ có nhiệm vụ ``trình diễn'', mà là điểm hội tụ của toàn bộ chuỗi xử lý: dữ liệu chuẩn hóa, mô hình biểu diễn, chỉ số đánh giá và logic phục vụ trực tuyến. Vì vậy, chất lượng demo được đánh giá qua khả năng phản ánh đúng hành vi của hệ thống recommendation đã huấn luyện, thay vì chỉ qua yếu tố thẩm mỹ giao diện.
+
+\section{Kiến trúc triển khai hiện tại}
+Ứng dụng được tổ chức theo mô hình lightweight để dễ tái lập:
+\begin{itemize}
+    \item \textbf{Frontend} (HTML/CSS/Vanilla JS): trang catalog, trang chi tiết, khung truy vấn recommendation;
+    \item \textbf{Backend} (FastAPI): API discovery và API recommendation;
+    \item \textbf{Data/Artifact}: PostgreSQL lưu dữ liệu chuẩn hóa, thư mục \texttt{training/artifacts} lưu kết quả mô hình.
+\end{itemize}
+
+Điểm quan trọng của kiến trúc là cơ chế \textit{artifact-first serving}: backend chỉ đọc artifact đã được sinh offline, tránh huấn luyện trong runtime.
+
+\section{Luồng nghiệp vụ của người dùng}
+\subsection{Luồng khám phá cơ bản}
+\begin{enumerate}[label=\arabic*.]
+    \item Người dùng truy cập trang catalog.
+    \item Hệ thống nạp danh sách phim theo phân trang từ PostgreSQL.
+    \item Người dùng chọn phim quan tâm để đi đến trang chi tiết.
+    \item Trang chi tiết hiển thị metadata và danh sách review.
+\end{enumerate}
+
+\subsection{Luồng recommendation}
+\begin{enumerate}[label=\arabic*.]
+    \item Từ catalog hoặc trang chi tiết, người dùng gửi truy vấn hoặc chọn một phim nguồn.
+    \item Backend tra cứu artifact recommendation.
+    \item Hệ thống trả về danh sách Top-$k$ phim tương đồng kèm điểm số.
+    \item Frontend hiển thị kết quả và cho phép điều hướng liên tục giữa các phim.
+\end{enumerate}
+
+\section{Cơ chế dự phòng và độ ổn định}
+Trong thực tế demo, artifact có thể chưa được sinh hoặc không tương thích phiên bản. Để tránh làm gián đoạn toàn bộ ứng dụng, hệ thống triển khai fallback về discovery catalog. Cơ chế này đảm bảo trải nghiệm người dùng không bị ``mất dịch vụ'' chỉ vì lớp recommendation chưa sẵn sàng.
+
+\section{Kịch bản trình diễn đề xuất}
+Kịch bản trình diễn nên đi theo logic kỹ thuật thay vì chỉ thao tác giao diện:
+\begin{enumerate}[label=\arabic*.]
+    \item Trình bày ngắn gọn bài toán và cấu trúc dữ liệu đầu vào.
+    \item Mở catalog, chứng minh hệ thống discovery hoạt động ổn định.
+    \item Chọn một phim có review đa dạng, truy cập trang chi tiết.
+    \item Gọi danh sách phim tương đồng và giải thích một vài kết quả nổi bật.
+    \item So sánh nhanh kết quả từ hai artifact khác nhau (TF-IDF và Sentence Transformer) để minh họa đóng góp của mô hình.
+\end{enumerate}
+
+\section{Tài sản minh họa cần thu thập}
+Để báo cáo và bảo vệ có tính thuyết phục cao, cần lưu đầy đủ:
+\begin{itemize}
+    \item ảnh trang catalog ở chế độ discovery;
+    \item ảnh trang chi tiết với review;
+    \item ảnh panel recommendation và điểm số Top-$k$;
+    \item ảnh trạng thái fallback khi artifact chưa sẵn sàng;
+    \item video demo ngắn có lời thuyết minh luồng end-to-end.
+\end{itemize}
+
+\section{Kết luận chương}
+Chương demo cho thấy kết quả nghiên cứu không dừng ở mức thí nghiệm offline mà đã được gắn vào một sản phẩm chạy được. Quan trọng hơn, cách tích hợp recommendation dựa trên artifact giúp hệ thống giữ được tính ổn định và khả năng tái lập, phù hợp với mục tiêu phát triển dài hạn của dự án.

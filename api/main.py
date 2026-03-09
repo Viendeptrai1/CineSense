@@ -2,7 +2,7 @@
 CineSense API - Main Application
 =================================
 
-FastAPI application for discovery-only movie browsing.
+FastAPI application for discovery and artifact-based recommendations.
 
 Usage:
     uvicorn api.main:app --reload --port 8000
@@ -18,7 +18,7 @@ from sqlalchemy import text
 
 from api import __version__
 from api.schemas import HealthResponse
-from api.routes import movies
+from api.routes import movies, recommendations
 from etl_pipeline.db_postgres import get_session, CoreMovie
 
 
@@ -71,7 +71,7 @@ app = FastAPI(
     Current scope:
     - paginated movie discovery
     - PostgreSQL as the source of truth
-    - search and vector serving disabled for now
+    - recommendation routes powered by offline training artifacts
     """,
     version=__version__,
     lifespan=lifespan,
@@ -96,6 +96,7 @@ app.add_middleware(
 # ============================================
 
 app.include_router(movies.router)
+app.include_router(recommendations.router)
 
 
 # ============================================
@@ -140,5 +141,5 @@ async def root():
         "version": __version__,
         "docs": "/docs",
         "health": "/health",
-        "mode": "discovery-only",
+        "mode": "discovery+recommendation-artifacts",
     }

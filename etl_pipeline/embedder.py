@@ -236,7 +236,7 @@ def get_embedding_dimension() -> int:
     Get the dimension of embedding vectors.
     
     Returns:
-        int: Embedding dimension (384 for all-MiniLM-L6-v2)
+        int: Embedding dimension (384 for paraphrase-multilingual-MiniLM-L12-v2)
     """
     model = get_embedding_model()
     return model.get_sentence_embedding_dimension()

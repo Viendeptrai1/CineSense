@@ -1,0 +1,83 @@
+\chapter{Giới thiệu đề tài}
+\chaptergoal{Đặt vấn đề nghiên cứu, xác định câu hỏi khoa học, phạm vi triển khai và ý nghĩa thực tiễn của hệ thống gợi ý phim dựa trên ngữ nghĩa văn bản.}
+
+\section{Bối cảnh nghiên cứu}
+Hệ sinh thái nội dung số hiện nay tạo ra một nghịch lý quen thuộc: người dùng có quá nhiều lựa chọn nhưng vẫn khó tìm được nội dung phù hợp với nhu cầu cảm xúc tại thời điểm truy cập. Với miền phim ảnh, nhu cầu này thường không được biểu đạt bằng tên phim cụ thể mà bằng mô tả ngôn ngữ tự nhiên, ví dụ \textit{``một phim tâm lý nặng về nội tâm''} hoặc \textit{``phim không khí u tối nhưng kết thúc tích cực''}. Cách tìm kiếm dựa trên từ khóa cứng không phản ánh đầy đủ mức độ tương đồng ngữ nghĩa giữa các mô tả này.
+
+\ProjectName{} được phát triển nhằm giải quyết khoảng trống trên bằng hướng tiếp cận \textit{text-driven recommendation}. Thay vì phụ thuộc hoàn toàn vào hành vi người dùng, hệ thống khai thác nội dung văn bản của phim (tiêu đề, mô tả, thể loại, review) để suy ra mức độ tương đồng giữa các đối tượng phim, từ đó tạo danh sách gợi ý Top-$k$ có thể giải thích được.
+
+\section{Phát biểu bài toán}
+Đề tài được mô hình hóa như một bài toán truy hồi tương đồng trong không gian biểu diễn văn bản.
+
+\begin{table}[H]
+\centering
+\caption{Đặc tả bài toán nghiên cứu}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{3cm}X}
+\toprule
+Thành phần & Mô tả \\
+\midrule
+Đầu vào & Hồ sơ phim truy vấn gồm \textit{title}, \textit{overview}, \textit{genres} và tập review tiếng Anh \\
+Đầu ra & Danh sách Top-$k$ phim có độ tương đồng cao nhất theo hàm đo ngữ nghĩa \\
+Loại tác vụ & Similarity-based Retrieval cho bài toán recommendation \\
+Đơn vị đánh giá & Mức độ phù hợp ngữ nghĩa của danh sách gợi ý theo truy vấn phim \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Từ phát biểu trên, câu hỏi trung tâm của đồ án là: \textit{mô hình biểu diễn văn bản nào cho phép biểu diễn ``hồ sơ phim'' đủ tốt để truy hồi các phim gần ngữ nghĩa trong điều kiện dữ liệu thực tế còn thiếu và nhiễu?}
+
+\section{Mục tiêu nghiên cứu}
+\subsection{Mục tiêu tổng quát}
+Xây dựng một hệ thống gợi ý phim có khả năng vận hành end-to-end, trong đó tầng dữ liệu, tầng mô hình và tầng ứng dụng được tách biệt rõ ràng, có khả năng tái lập thí nghiệm và mở rộng thực nghiệm.
+
+\subsection{Mục tiêu cụ thể}
+\begin{enumerate}[label=\arabic*.]
+    \item Chuẩn hóa dữ liệu phim và review sang schema thống nhất phục vụ NLP.
+    \item Thiết kế biểu diễn hồ sơ phim từ nhiều nguồn tín hiệu văn bản.
+    \item Triển khai các mô hình nền (TF-IDF, Word2Vec) và mô hình cải tiến (Sentence Transformer) cho bài toán tương đồng phim.
+    \item Xây dựng lớp đánh giá thực nghiệm với các chỉ số truy hồi.
+    \item Tích hợp kết quả mô hình vào API và giao diện web để minh họa luồng sử dụng thực tế.
+\end{enumerate}
+
+\section{Phạm vi thực hiện}
+\subsection{Phạm vi dữ liệu}
+\begin{itemize}
+    \item Ngôn ngữ trọng tâm: tiếng Anh.
+    \item Nguồn dữ liệu: TMDB metadata và TMDB review.
+    \item Đối tượng dữ liệu huấn luyện: các bảng \texttt{core\_movies}, \texttt{core\_reviews}, \texttt{core\_genres}.
+\end{itemize}
+
+\subsection{Phạm vi hệ thống}
+\begin{itemize}
+    \item ETL chịu trách nhiệm thu thập và chuẩn hóa dữ liệu.
+    \item Tầng \texttt{training/} thực hiện huấn luyện, đánh giá và xuất artifacts.
+    \item API phục vụ discovery và recommendation dựa trên artifacts offline.
+    \item Frontend cung cấp catalog, trang chi tiết phim và luồng truy vấn recommendation.
+\end{itemize}
+
+\subsection{Giới hạn nghiên cứu}
+\begin{itemize}
+    \item Chưa đi sâu vào recommendation cá nhân hóa dựa trên lịch sử người dùng.
+    \item Chưa khai thác đầy đủ tín hiệu phi văn bản như cast, crew, keywords và watch behavior.
+    \item Ground-truth cho đánh giá retrieval chủ yếu dựa trên tín hiệu weak supervision trong giai đoạn đầu.
+\end{itemize}
+
+\section{Đóng góp của đề tài}
+Đóng góp chính của đồ án không chỉ nằm ở việc xây một giao diện demo, mà nằm ở việc thiết kế một pipeline nghiên cứu có thể mở rộng:
+\begin{itemize}
+    \item Tách lớp dữ liệu huấn luyện khỏi lớp social/legacy để giảm nhiễu.
+    \item Xây dựng ``movie profile'' như đơn vị biểu diễn trung gian giữa dữ liệu thô và mô hình.
+    \item Đưa mô hình recommendation từ offline vào runtime theo hướng artifact-first, giảm phụ thuộc vào trạng thái huấn luyện online.
+    \item Đồng bộ hóa kết quả thực nghiệm với tài liệu báo cáo để đảm bảo tính truy xuất nguồn gốc.
+\end{itemize}
+
+\section{Ý nghĩa thực tiễn}
+Về ứng dụng, hệ thống có thể được dùng như:
+\begin{itemize}
+    \item công cụ khám phá phim theo nội dung cho người dùng phổ thông;
+    \item công cụ tham chiếu nhanh cho người làm nội dung điện ảnh;
+    \item nền tảng trung gian cho các hướng mở rộng như semantic search hoặc trợ lý tư vấn phim.
+\end{itemize}
+
+\section{Cấu trúc báo cáo}
+Báo cáo được tổ chức theo tiến trình nghiên cứu chuẩn: từ cơ sở lý thuyết, đặc tả dữ liệu, phương pháp mô hình hóa, thiết kế thực nghiệm, triển khai ứng dụng, đến tổng kết và định hướng phát triển. Cách tổ chức này giúp người đọc theo dõi rõ mối liên hệ giữa quyết định kỹ thuật và kết quả định lượng ở từng giai đoạn.

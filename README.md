@@ -1,13 +1,14 @@
 # CineSense
 
-CineSense hiện đang chạy ở chế độ `discovery-only`: frontend chỉ hiển thị toàn bộ phim có trong PostgreSQL với phân trang. Search và vector serving đang được tắt tạm thời để ưu tiên làm sạch lại dữ liệu tiếng Anh trong Postgres, chuẩn bị cho pipeline embedding và recommendation ở giai đoạn tiếp theo.
+CineSense hiện chạy theo kiến trúc tách lớp rõ ràng: `ETL -> training -> runtime API -> frontend`.
+Frontend vẫn ưu tiên discovery catalog từ PostgreSQL, đồng thời có thể bật recommendation dựa trên artifacts được sinh từ thư mục `training/`.
 
 ## Trạng thái hiện tại
 
-- Frontend: một trang catalog phân trang từ PostgreSQL
-- Backend: FastAPI chỉ phục vụ discovery runtime
-- ETL: ưu tiên nạp metadata/review tiếng Anh vào Postgres core schema
-- Qdrant / semantic search: tạm tắt khỏi runtime hiện tại
+- Frontend: catalog + detail + recommendation search (artifact-based fallback)
+- Backend: FastAPI phục vụ discovery và recommendation endpoints
+- ETL: nạp metadata/review tiếng Anh vào Postgres core schema
+- Training: mô hình baseline/improved nằm trong `training/`
 
 ---
 
@@ -58,7 +59,7 @@ Dự án này không chỉ dừng lại ở việc "gợi ý phim" đơn thuần
 *   **Databases:**
     *   **PostgreSQL:** Lưu trữ thông tin phim, người dùng, đánh giá.
     *   **Qdrant:** Vector database lưu trữ và tìm kiếm vector review phim.
-*   **AI:** `sentence-transformers` (paraphrase-multilingual-MiniLM-L12-v2)
+*   **AI:** `sentence-transformers` (paraphrase-multilingual-MiniLM-L12-v2, 384 dims)
 *   **Infra:** Docker & Docker Compose.
 
 ---
@@ -69,6 +70,7 @@ CineSen/
 ├── api/                # FastAPI application
 ├── etl_pipeline/       # Crawler & Vectorization scripts
 ├── frontend/           # Web interface
+├── training/           # Offline model training & artifact export
 ├── infra/              # Docker setup & Data seeds
 │   └── seed/           # Portable data snapshots for collaborators
 ├── scripts/            # Utility scripts (backup/restore)
@@ -98,9 +100,18 @@ CineSen/
 Sau đó truy cập địa chỉ: [http://localhost:3000](http://localhost:3000)
 
 Lưu ý:
-- Discovery page hiện không có search box hoạt động
 - Nguồn dữ liệu runtime là PostgreSQL core schema
-- Semantic search sẽ được nối lại sau khi pipeline embedding mới hoàn tất
+- Recommendation runtime đọc artifacts trong `training/artifacts/`
+- Nếu artifacts chưa có, frontend tự fallback về catalog chuẩn
+
+### Build training artifacts
+
+```bash
+python scripts/audit_core_data.py --output-json training/artifacts/latest/core_audit.json
+python -m training.baselines.train_tfidf --artifact-name tfidf_latest --top-k 20
+python -m training.models.train_sentence_transformer --artifact-name sbert_latest --top-k 20
+python -m training.evaluation.run_eval --artifact-dir training/artifacts/sbert_latest --output-json training/artifacts/sbert_latest/eval.json
+```
 
 ---
 

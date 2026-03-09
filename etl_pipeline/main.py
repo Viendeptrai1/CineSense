@@ -22,7 +22,7 @@ Usage:
 
 import argparse
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 
@@ -39,6 +39,34 @@ from .db_postgres import (
     CoreGenre,
 )
 from .crawler import TMDBClient, TMDBMovie, TMDBReview, TMDBGenre
+
+
+def _parse_tmdb_datetime(value: str) -> Optional[datetime]:
+    """Parse TMDB ISO datetime safely."""
+    if not value:
+        return None
+    try:
+        # TMDB timestamps often end with Z; normalize for datetime.fromisoformat
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _infer_review_language(content: str) -> str:
+    """
+    Lightweight language heuristic for training contract.
+
+    We default to English and mark unknown only for very short/noisy text.
+    """
+    text = (content or "").strip()
+    if len(text) < 20:
+        return "unknown"
+    ascii_letters = sum(ch.isascii() and ch.isalpha() for ch in text)
+    alpha_total = sum(ch.isalpha() for ch in text)
+    if alpha_total == 0:
+        return "unknown"
+    ratio = ascii_letters / alpha_total
+    return "en" if ratio >= 0.85 else "unknown"
 
 
 # ============================================
@@ -122,19 +150,14 @@ def process_tmdb_movie(
         if tmdb_review.tmdb_id in existing_review_ids:
             continue
 
-        source_created_at = None
-        if tmdb_review.created_at:
-            try:
-                source_created_at = date.fromisoformat(tmdb_review.created_at[:10])
-            except ValueError:
-                source_created_at = None
+        source_created_at = _parse_tmdb_datetime(tmdb_review.created_at)
 
         review = CoreReview(
             id=uuid.uuid4(),
             movie_id=movie.id,
             external_review_id=tmdb_review.tmdb_id,
             source="tmdb",
-            language="en",
+            language=_infer_review_language(tmdb_review.content),
             author_username=tmdb_review.author,
             author_name=tmdb_review.author_name,
             author_avatar_url=f"https://image.tmdb.org/t/p/original{tmdb_review.avatar_path}" if tmdb_review.avatar_path else None,

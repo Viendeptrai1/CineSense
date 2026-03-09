@@ -43,6 +43,8 @@ logs/
 # Data & Models
 data/
 models/
+training/artifacts/*
+!training/artifacts/README.md
 *.h5
 *.pkl
 *.pt

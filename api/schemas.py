@@ -178,6 +178,41 @@ class MovieListResponse(BaseModel):
     movies: List[MovieSchema]
 
 
+class RecommendationItem(BaseModel):
+    movie_id: str
+    title: Optional[str] = None
+    overview: Optional[str] = None
+    poster_path: Optional[str] = None
+    genres: List[str] = []
+    review_count: int = 0
+    score: Optional[float] = None
+
+
+class SimilarMoviesResponse(BaseModel):
+    source_movie_id: str
+    total_results: int
+    model: str
+    results: List[RecommendationItem]
+
+
+class RecommendationSearchRequest(BaseModel):
+    query: str = Field(..., min_length=2, max_length=300)
+    limit: int = Field(default=10, ge=1, le=50)
+
+
+class RecommendationSearchResponse(BaseModel):
+    query: str
+    total_results: int
+    model: str
+    results: List[RecommendationItem]
+
+
+class TrendingRecommendationsResponse(BaseModel):
+    total_results: int
+    model: str
+    results: List[RecommendationItem]
+
+
 # ============================================
 # Health Check
 # ============================================

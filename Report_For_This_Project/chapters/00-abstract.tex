@@ -1,0 +1,8 @@
+\chapter*{Tóm tắt}
+\addcontentsline{toc}{chapter}{Tóm tắt}
+
+Đề tài \ProjectName{} nghiên cứu bài toán gợi ý phim dựa trên tương đồng ngữ nghĩa của dữ liệu văn bản, với mục tiêu xây dựng một pipeline có thể tái lập từ dữ liệu thô đến ứng dụng chạy được. Dữ liệu được thu thập chủ yếu từ TMDB và được chuẩn hóa về lớp \texttt{core\_*} để phục vụ huấn luyện mô hình. Trên nền dữ liệu này, đề tài triển khai lộ trình so sánh giữa các mô hình nền (TF-IDF, Word2Vec) và mô hình cải tiến (Sentence Transformer), đồng thời đánh giá bằng các chỉ số truy hồi như Precision@k, Recall@k và nDCG@k.
+
+Một đóng góp kỹ thuật quan trọng của đề tài là kiến trúc \textit{artifact-first serving}: mô hình được huấn luyện offline trong thư mục \texttt{training/}, sau đó xuất artifacts để API runtime nạp trực tiếp. Cách làm này tách biệt rõ giữa quá trình nghiên cứu và phục vụ, giúp hệ thống ổn định hơn trong triển khai, đồng thời tạo điều kiện tái lập thực nghiệm và truy xuất nguồn gốc kết quả.
+
+Phiên bản hiện tại của hệ thống đã hỗ trợ các luồng chính gồm: khám phá catalog, xem chi tiết phim và review, truy vấn recommendation từ artifact. Kết quả bước đầu cho thấy hướng biểu diễn dựa trên Sentence Transformer có tiềm năng cải thiện chất lượng truy hồi ngữ nghĩa so với baseline thống kê. Tuy vậy, đề tài vẫn còn các giới hạn về độ đầy đủ metadata, mật độ review trên mỗi phim và bộ nhãn đánh giá chuẩn. Trên cơ sở đó, báo cáo đề xuất lộ trình mở rộng theo hướng tăng chất lượng dữ liệu, cải thiện phương pháp đánh giá và tiến tới recommendation lai ghép giữa tín hiệu nội dung và tín hiệu hành vi.

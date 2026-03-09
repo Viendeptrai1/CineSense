@@ -33,3 +33,13 @@ Hoặc truy cập GUI của Qdrant tại: [http://localhost:6333/dashboard](http
 python scripts/backup_data.py
 ```
 Sau đó commit các file trong `infra/seed/` lên GitHub.
+
+## 4. Build artifacts recommendation (offline)
+
+Sau khi DB đã sẵn sàng, chạy pipeline huấn luyện:
+
+```bash
+python scripts/run_recommendation_pipeline.py
+```
+
+Artifacts sẽ xuất ra `training/artifacts/` để API runtime đọc tại các endpoint recommendation.

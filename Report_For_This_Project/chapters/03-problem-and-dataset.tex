@@ -1,0 +1,104 @@
+\chapter{Mô tả bài toán và dữ liệu}
+\chaptergoal{Đặc tả nguồn dữ liệu, cấu trúc lưu trữ, chất lượng ngữ liệu và các quyết định tiền xử lý ảnh hưởng trực tiếp tới thực nghiệm recommendation.}
+
+\section{Nguồn và đặc tính dữ liệu}
+Nguồn dữ liệu chính của hệ thống là TMDB \cite{tmdb}, bao gồm hai nhóm thông tin: (i) metadata phim có cấu trúc và (ii) review dạng văn bản tự do. Từ góc nhìn mô hình hóa, hai nhóm dữ liệu này bổ sung cho nhau: metadata cung cấp ngữ cảnh tĩnh của phim, trong khi review phản ánh ngôn ngữ mô tả cảm nhận người xem theo nhiều phong cách diễn đạt.
+
+\section{Thiết kế kho dữ liệu phục vụ NLP}
+Để tránh nhiễu từ các bảng legacy phục vụ social/authentication, đề tài sử dụng lớp dữ liệu chuẩn hóa riêng cho AI:
+\begin{itemize}
+    \item \texttt{core\_movies}: thực thể phim ở mức canonical;
+    \item \texttt{core\_reviews}: kho review ngoài hệ social;
+    \item \texttt{core\_genres}: taxonomy thể loại;
+    \item \texttt{core\_movie\_genres}: quan hệ nhiều-nhiều phim--thể loại.
+\end{itemize}
+
+Cách tách lớp này cho phép huấn luyện và đánh giá mô hình trên một ``hợp đồng dữ liệu'' ổn định, giảm nguy cơ thay đổi schema runtime làm sai lệch thực nghiệm.
+
+\section{Thống kê mô tả dữ liệu hiện có}
+Tại thời điểm tổng hợp báo cáo, bộ dữ liệu vận hành có quy mô:
+\begin{itemize}
+    \item \texttt{core\_movies}: 4900 bản ghi;
+    \item \texttt{core\_reviews}: 9373 bản ghi;
+    \item \texttt{core\_genres}: 19 thể loại.
+\end{itemize}
+
+\begin{table}[H]
+\centering
+\caption{Mức độ đầy đủ của trường thông tin phim}
+\begin{tabularx}{\textwidth}{>{\bfseries}l>{\raggedleft\arraybackslash}X}
+\toprule
+Thuộc tính & Tỷ lệ đầy đủ \\
+\midrule
+Title & 4900 / 4900 \\
+Overview & 4900 / 4900 \\
+Poster path & 4592 / 4900 \\
+Release date & 4857 / 4900 \\
+Vote average & 0 / 4900 \\
+Vote count & 0 / 4900 \\
+Popularity & 0 / 4900 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Mức độ đầy đủ của trường thông tin review}
+\begin{tabularx}{\textwidth}{>{\bfseries}l>{\raggedleft\arraybackslash}X}
+\toprule
+Thuộc tính & Tỷ lệ đầy đủ \\
+\midrule
+Content & 9373 / 9373 \\
+Rating & 8526 / 9373 \\
+Author name & 9373 / 9373 \\
+Source created at & 0 / 9373 \\
+Source URL & 0 / 9373 \\
+External review ID & 0 / 9373 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Phân bố review và hàm ý cho mô hình}
+Phân tích phân bố số review trên mỗi phim cho thấy dữ liệu có tính lệch mạnh:
+\begin{itemize}
+    \item 2481 phim không có review;
+    \item 1320 phim có từ 1--3 review;
+    \item 1099 phim có từ 4--10 review;
+    \item trung bình 1.91 review/phim.
+\end{itemize}
+
+Phân bố này hàm ý rằng mô hình không thể chỉ dựa vào review text. Nếu chỉ dùng review, một nửa catalog sẽ rơi vào trạng thái cold item. Vì vậy, biểu diễn phim phải được thiết kế đa nguồn, trong đó \textit{overview} đóng vai trò trụ cột và review đóng vai trò tín hiệu tăng cường.
+
+\section{Hợp đồng dữ liệu cho huấn luyện}
+Để đảm bảo khả năng tái lập, đề tài chuẩn hóa một hợp đồng dữ liệu có thể kiểm tra bằng script:
+\begin{itemize}
+    \item script audit: \texttt{scripts/audit\_core\_data.py};
+    \item tài liệu contract: \texttt{docs/data\_contract.md};
+    \item output audit dạng JSON: \texttt{training/artifacts/latest/core\_audit.json}.
+\end{itemize}
+
+Quy trình này cho phép chuyển từ mô tả định tính sang bằng chứng định lượng: mỗi lần thay đổi ETL hoặc schema đều có thể đánh giá lại mức độ đầy đủ dữ liệu trước khi huấn luyện.
+
+\section{Tiền xử lý dữ liệu văn bản}
+Pipeline tiền xử lý được chọn theo nguyên tắc \textit{đủ làm sạch nhưng không phá nghĩa}:
+\begin{enumerate}[label=\arabic*.]
+    \item loại HTML và ký tự nhiễu;
+    \item chuẩn hóa khoảng trắng và chuẩn hóa unicode;
+    \item chuẩn hóa chữ thường cho nhóm baseline thống kê;
+    \item xây dựng \textit{movie profile} từ \textit{title + overview + genres + review snippets};
+    \item sinh thống kê mô tả trước huấn luyện để phát hiện phân bố bất thường.
+\end{enumerate}
+
+\section{Chiến lược chia tập và chống rò rỉ dữ liệu}
+Đề tài triển khai chia tập theo hướng query--candidate cho retrieval thay vì train/test kiểu phân lớp cổ điển. Trong phiên bản hiện tại, split được tạo theo hàm băm định danh phim nhằm đảm bảo tính xác định (\textit{deterministic split}). Cách làm này giúp các lần chạy thí nghiệm độc lập vẫn cho cùng tập đánh giá, giảm nhiễu do lấy mẫu ngẫu nhiên.
+
+\section{Khoảng trống dữ liệu cần xử lý tiếp}
+Mặc dù dữ liệu đã đủ để khởi chạy baseline, ba vấn đề vẫn ảnh hưởng trực tiếp đến chất lượng recommendation:
+\begin{itemize}
+    \item thiếu các trường metadata quan trọng cho reranking (\texttt{popularity}, \texttt{vote\_average}, \texttt{vote\_count});
+    \item thiếu provenance review ở mức nguồn gốc và thời điểm phát sinh;
+    \item thiếu đặc trưng giàu ngữ nghĩa miền phim như cast, director, keywords, runtime.
+\end{itemize}
+
+\section{Kết luận chương}
+Chương này cho thấy dữ liệu hiện tại đạt mức \textit{khả dụng cho nghiên cứu} nhưng chưa đạt mức \textit{tối ưu cho sản phẩm}. Các quyết định ở chương phương pháp vì vậy sẽ theo hướng: tối đa hóa chất lượng biểu diễn từ tín hiệu hiện có, đồng thời giữ pipeline mở để tiếp nhận backfill dữ liệu ở các vòng lặp tiếp theo.

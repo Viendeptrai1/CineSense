@@ -1,0 +1,51 @@
+\chapter{Tổng quan lý thuyết}
+\chaptergoal{Trình bày các nền tảng biểu diễn văn bản và truy hồi ngữ nghĩa làm cơ sở cho hệ gợi ý phim dựa trên nội dung.}
+
+\section{Biểu diễn văn bản trong hệ gợi ý}
+Trong các hệ recommendation dựa trên nội dung, câu hỏi quan trọng nhất là làm thế nào ánh xạ dữ liệu ngôn ngữ tự nhiên về không gian vector sao cho khoảng cách hình học phản ánh mức độ gần nhau về nghĩa. Với miền phim, dữ liệu đầu vào thường gồm nhiều trường dị thể: tiêu đề ngắn, mô tả dài, thể loại dạng nhãn và review dạng văn bản tự do. Điều này khiến biểu diễn vector cần vừa giữ được ngữ cảnh tổng quát, vừa không làm mất các tín hiệu chuyên biệt của miền điện ảnh.
+
+\subsection{Mô hình túi từ và trọng số thống kê}
+Bag-of-Words và TF-IDF là hai nền tảng cổ điển, trong đó TF-IDF tăng trọng số cho các từ phân biệt và giảm trọng số cho các từ quá phổ biến. Ưu điểm của TF-IDF là tính diễn giải cao, chi phí huấn luyện thấp, phù hợp để thiết lập đường cơ sở khi dữ liệu chưa thật sự ổn định. Nhược điểm chính là biểu diễn rời rạc, không mô hình hóa quan hệ ngữ nghĩa sâu giữa các từ đồng nghĩa hoặc cụm từ có cùng ý nghĩa.
+
+\subsection{Word embedding học phân bố}
+Word2Vec học biểu diễn từ dựa trên ngữ cảnh đồng xuất hiện \cite{mikolov2013word2vec}. Trong thực hành recommendation, vector cấp câu/phim thường được xây bằng cách tổng hợp các vector từ. Cách tiếp cận này khắc phục một phần sự rời rạc của TF-IDF, nhưng còn hạn chế khi phải biểu diễn những câu dài và cấu trúc nghĩa phức hợp.
+
+\subsection{Sentence embedding dựa trên Transformer}
+Các kiến trúc BERT và đặc biệt là Sentence-BERT cho phép nhúng trực tiếp câu hoặc đoạn văn vào một không gian vector dày đặc \cite{devlin2019bert,reimers2019sentencebert}. Với bài toán truy hồi tương đồng phim, sentence embedding thường có lợi thế khi dữ liệu gồm nhiều câu diễn đạt tự nhiên và cần so khớp ở mức ý nghĩa thay vì trùng khớp từ bề mặt.
+
+\section{Tiền xử lý văn bản và tác động đến chất lượng embedding}
+Tiền xử lý không chỉ là làm sạch dữ liệu, mà còn là bước chuẩn hóa ngữ liệu để mô hình học được tín hiệu ổn định. Quy trình cơ bản của đề tài bao gồm loại bỏ HTML, chuẩn hóa khoảng trắng, xử lý ký tự đặc biệt và chuẩn hóa chữ thường với các baseline thống kê. Đối với mô hình ngữ nghĩa mạnh, việc giữ nguyên một phần dấu câu hoặc stopword có thể giúp bảo toàn ngữ cảnh câu, vì vậy các quyết định tiền xử lý cần được xác nhận bằng thực nghiệm thay vì áp dụng cứng.
+
+\section{Đo độ tương đồng trong không gian vector}
+\subsection{Cosine similarity}
+Cosine similarity là phép đo trung tâm của đề tài vì bất biến theo độ dài vector và phù hợp với bài toán xếp hạng theo góc giữa hai biểu diễn. Với mỗi phim truy vấn $q$ và phim ứng viên $d$, độ tương đồng được tính:
+\[
+\mathrm{sim}(q, d) = \frac{\mathbf{q}\cdot\mathbf{d}}{\lVert\mathbf{q}\rVert\lVert\mathbf{d}\rVert}
+\]
+Điểm số càng cao thì mức gần ngữ nghĩa càng lớn.
+
+\subsection{Mở rộng sang hệ truy hồi Top-$k$}
+Thực tế triển khai không dừng ở việc so sánh một cặp phim, mà cần sinh danh sách Top-$k$ theo thứ tự giảm dần của điểm tương đồng. Danh sách này có thể được điều chỉnh hậu xử lý bằng các tín hiệu bổ sung như số lượng review, mức độ đầy đủ dữ liệu hoặc độ mới của phim để tăng tính khả dụng trong ứng dụng.
+
+\section{Khung mô hình cho đề tài}
+\subsection{Nhóm mô hình nền}
+Hai mô hình nền được sử dụng để tạo mốc tham chiếu:
+\begin{itemize}
+    \item TF-IDF trên \textit{overview} (khai thác tín hiệu mô tả chính);
+    \item TF-IDF trên \textit{movie profile} tổng hợp (tiêu đề + mô tả + thể loại + trích đoạn review).
+\end{itemize}
+
+\subsection{Nhóm mô hình cải tiến}
+Hướng cải tiến chính là sentence embedding từ mô hình Transformer đa ngôn ngữ, áp dụng lên cùng đơn vị \textit{movie profile}. Việc dùng cùng đầu vào giúp so sánh công bằng với các baseline và phản ánh trực tiếp phần đóng góp của năng lực biểu diễn.
+
+\section{Các chỉ số đánh giá truy hồi}
+Do bài toán có bản chất retrieval, hệ chỉ số cần phản ánh đồng thời chất lượng xếp hạng và khả năng thu hồi:
+\begin{itemize}
+    \item \textbf{Precision@k}: tỷ lệ mục liên quan trong Top-$k$;
+    \item \textbf{Recall@k}: mức độ bao phủ mục liên quan;
+    \item \textbf{nDCG@k}: chất lượng thứ hạng có xét vị trí;
+    \item \textbf{Cosine score distribution}: phân bố điểm tương đồng để phân tích khả năng phân tách của mô hình.
+\end{itemize}
+
+\section{Kết luận chương}
+Các cơ sở lý thuyết trong chương này định nghĩa một nguyên tắc xuyên suốt cho phần còn lại của báo cáo: cùng một bài toán truy hồi, cùng một đơn vị biểu diễn phim, nhưng thay đổi cơ chế vector hóa để lượng hóa phần đóng góp của từng hướng mô hình. Từ đây, chương kế tiếp chuyển sang mô tả dữ liệu thực và các ràng buộc chất lượng của pipeline.

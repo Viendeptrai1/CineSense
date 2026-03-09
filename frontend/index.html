@@ -25,7 +25,12 @@
         <div class="hero-overlay"></div>
         <div class="hero-content">
             <h1 class="hero-title">Movie Discovery</h1>
-            <p class="hero-subtitle">Browse the full English movie catalog stored in PostgreSQL. Search is temporarily disabled while the new recommendation pipeline is being rebuilt.</p>
+            <p class="hero-subtitle">Browse the English catalog and try artifact-based recommendations. If recommendation artifacts are unavailable, the app gracefully falls back to catalog mode.</p>
+            <div class="hero-search-inline">
+                <input id="recommendationQuery" type="text" placeholder="Try: dark superhero, romantic tragedy, space survival..." class="search-input-lg">
+                <button id="recommendationSearchBtn" class="btn-primary">Search Recommendations</button>
+                <button id="recommendationResetBtn" class="btn-secondary">Back To Catalog</button>
+            </div>
         </div>
     </section>
 
