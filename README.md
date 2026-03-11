@@ -79,46 +79,43 @@ CineSen/
 
 ---
 
-## 🏃 Hướng dẫn chạy ứng dụng (Quick Start)
-
-Để khởi động toàn bộ hệ thống CineSense hiện tại, bạn thực hiện 3 bước sau:
-
-1.  **Khởi động Cơ sở dữ liệu:**
-    ```bash
-    docker-compose up -d
-    ```
-2.  **Khởi động Backend (API):**
-    ```bash
-    source .venv/bin/activate
-    uvicorn api.main:app --reload --port 8000
-    ```
-3.  **Khởi động Frontend (Giao diện):**
-    ```bash
-    cd frontend
-    python3 -m http.server 3000
-    ```
-Sau đó truy cập địa chỉ: [http://localhost:3000](http://localhost:3000)
-
-Lưu ý:
-- Nguồn dữ liệu runtime là PostgreSQL core schema
-- Recommendation runtime đọc artifacts trong `training/artifacts/`
-- Nếu artifacts chưa có, frontend tự fallback về catalog chuẩn
-
-### Build training artifacts
+## 🏃 Quick Start (Pull về là chạy)
 
 ```bash
+# 1. Clone & cài đặt
+git clone <repo-url> && cd CineSen
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# 2. Khởi động database (PostgreSQL tự seed 4 900 phim + 9 373 reviews)
+docker-compose up -d
+# Lần đầu Postgres detect volume trống → tự nạp infra/seed/postgres/01-seed-data.sql.gz
+# Chờ ~30s để seed xong, kiểm tra: docker logs cinesense-postgres --tail 5
+
+# 3. Khởi động Backend
+uvicorn api.main:app --reload --port 8000
+
+# 4. Khởi động Frontend
+cd frontend && python3 -m http.server 3000
+```
+
+> Không cần file `.env` để chạy app -- mọi config đã có default. Chỉ cần tạo `.env` khi muốn cào thêm data mới (cần `TMDB_API_KEY`).
+
+Truy cập: [http://localhost:3000](http://localhost:3000)
+
+> **Lưu ý:**
+> - Lần đầu `docker-compose up -d` sẽ tự tạo database và nạp toàn bộ dữ liệu đã cào (4 900 phim, 9 373 reviews, 19 genres). Không cần chạy thêm script gì.
+> - Nếu muốn reset database: `docker-compose down -v` rồi `docker-compose up -d`.
+> - Recommendation runtime đọc artifacts từ `training/artifacts/`. Nếu chưa có, frontend tự fallback về catalog chuẩn.
+
+### Build training artifacts (optional)
+
+```bash
+source .venv/bin/activate
 python scripts/audit_core_data.py --output-json training/artifacts/latest/core_audit.json
 python -m training.baselines.train_tfidf --artifact-name tfidf_latest --top-k 20
 python -m training.models.train_sentence_transformer --artifact-name sbert_latest --top-k 20
 python -m training.evaluation.run_eval --artifact-dir training/artifacts/sbert_latest --output-json training/artifacts/sbert_latest/eval.json
-```
-
----
-
-## ⚙️ Cài đặt bổ sung (Dành cho Dev)
-Nếu bạn vừa pull code về và thấy web rỗng, hãy khôi phục dữ liệu mẫu:
-```bash
-python scripts/restore_data.py
 ```
 
 ---
