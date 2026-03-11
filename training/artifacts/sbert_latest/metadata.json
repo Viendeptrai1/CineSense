@@ -1,0 +1,9 @@
+{
+  "artifact_type": "sentence_transformer",
+  "artifact_version": "sbert_latest",
+  "created_at": "2026-03-09T15:31:22.915358+00:00",
+  "model_name": "paraphrase-multilingual-MiniLM-L12-v2",
+  "embedding_dim": 384,
+  "top_k": 20,
+  "movie_count": 4900
+}
