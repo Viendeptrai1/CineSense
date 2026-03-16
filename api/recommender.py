@@ -11,8 +11,9 @@ def _resolve_artifact_dir() -> Path:
     configured = os.getenv("RECOMMENDER_ARTIFACT_DIR")
     if configured:
         return Path(configured)
-    # Prefer improved model output, then baseline fallback.
+    # Prefer improved English SentenceTransformer output, then multilingual/baseline fallback.
     candidates = [
+        Path("training/artifacts/sbert_en_latest"),
         Path("training/artifacts/sbert_latest"),
         Path("training/artifacts/tfidf_latest"),
     ]

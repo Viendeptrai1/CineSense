@@ -6,8 +6,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 from sklearn.metrics.pairwise import cosine_similarity
 
+from etl_pipeline.embedder import preprocess_text
 from training.config import config
 from training.data.loaders import load_movie_records
 from training.data.profiles import build_profiles
@@ -23,7 +25,13 @@ else:
 
 
 def _tokenize(text: str) -> list[str]:
-    return [tok for tok in text.lower().split() if tok.isalpha() and len(tok) > 1]
+    cleaned = preprocess_text(text)
+    tokens = [
+        tok
+        for tok in cleaned.split()
+        if tok.isalpha() and len(tok) > 1 and tok not in ENGLISH_STOP_WORDS
+    ]
+    return tokens
 
 
 def _average_embedding(tokens: list[str], model: "Word2Vec", dim: int) -> np.ndarray:

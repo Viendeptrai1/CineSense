@@ -221,6 +221,12 @@ button {
     margin-bottom: 32px;
 }
 
+.hero-hint-text {
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.85);
+}
+
 .hero-search-inline {
     display: flex;
     gap: 10px;
@@ -983,6 +989,117 @@ button {
 .similar-score {
     font-size: 0.85rem;
     color: var(--color-text-sub);
+}
+
+/* Aspect-Based Sentiment (ABSA) */
+.absa-section {
+    margin-top: 24px;
+    margin-bottom: 28px;
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-soft);
+    padding: 24px;
+}
+
+.detail-hint {
+    font-size: 0.9rem;
+    color: var(--color-text-sub);
+    margin-bottom: 12px;
+}
+
+.absa-list {
+    min-height: 40px;
+}
+
+.absa-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+}
+
+.absa-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+}
+
+.absa-aspect {
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.absa-sentiment[data-sentiment="positive"] { color: #16a34a; }
+.absa-sentiment[data-sentiment="negative"] { color: #dc2626; }
+.absa-sentiment[data-sentiment="neutral"] { color: var(--color-text-sub); }
+
+.absa-score {
+    margin-left: auto;
+    font-size: 0.8rem;
+    color: var(--color-text-sub);
+}
+
+/* ============================================
+   About / Under the Hood Section
+   ============================================ */
+.about-section {
+    margin-top: 40px;
+    margin-bottom: 60px;
+}
+
+.about-intro {
+    font-size: 0.98rem;
+    color: var(--color-text-sub);
+    margin-bottom: 24px;
+    max-width: 760px;
+}
+
+.about-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+}
+
+.about-card {
+    background: #ffffff;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+    padding: 20px 22px;
+    box-shadow: var(--shadow-soft);
+}
+
+.about-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.about-text {
+    font-size: 0.95rem;
+    color: var(--color-text-sub);
+    margin-bottom: 8px;
+}
+
+.about-list {
+    margin-left: 18px;
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+    color: var(--color-text-sub);
+}
+
+.about-list li {
+    margin-bottom: 4px;
+}
+
+.about-card code {
+    background: #f3f4f6;
+    padding: 1px 4px;
+    border-radius: 4px;
+    font-size: 0.9em;
 }
 
 @media (max-width: 960px) {

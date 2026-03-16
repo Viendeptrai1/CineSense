@@ -10,15 +10,18 @@ Model: paraphrase-multilingual-MiniLM-L12-v2
 - Performance: Fast inference, excellent multilingual semantic similarity
 - Use case: "phim kinh dị" ≈ "horror movie" cross-lingual search
 
-Text Preprocessing Pipeline:
-1. HTML tag removal (BeautifulSoup)
-2. Lowercase normalization
-3. Whitespace normalization
-4. Optional: Stopword removal (configurable)
+Text Preprocessing Pipeline (English-first, multilingual safe):
+1. Unicode normalization
+2. HTML tag removal (BeautifulSoup)
+3. URL / email / mention / hashtag removal
+4. Emoji & emoticon handling (remove or collapse)
+5. Whitespace normalization
+6. Lowercase normalization (configurable, default: on)
 """
 
 import re
-from typing import List, Optional, Union
+import unicodedata
+from typing import List, Optional
 
 import numpy as np
 from bs4 import BeautifulSoup
@@ -56,6 +59,39 @@ def get_embedding_model() -> SentenceTransformer:
 # Text Preprocessing
 # ============================================
 
+_URL_PATTERN = re.compile(
+    r"(https?://\S+|www\.\S+)",
+    flags=re.IGNORECASE,
+)
+
+_EMAIL_PATTERN = re.compile(
+    r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b",
+    flags=re.IGNORECASE,
+)
+
+_MENTION_HASHTAG_PATTERN = re.compile(
+    r"(?:(?<!\w)[@#]\w+)",
+    flags=re.UNICODE,
+)
+
+# Rough emoji / pictograph range matcher – intentionally simple & dependency-free
+_EMOJI_PATTERN = re.compile(
+    "["  # start character class
+    "\U0001F300-\U0001F5FF"  # symbols & pictographs
+    "\U0001F600-\U0001F64F"  # emoticons
+    "\U0001F680-\U0001F6FF"  # transport & map symbols
+    "\U0001F700-\U0001F77F"
+    "\U0001F780-\U0001F7FF"
+    "\U0001F800-\U0001F8FF"
+    "\U0001F900-\U0001F9FF"
+    "\U0001FA00-\U0001FA6F"
+    "\U0001FA70-\U0001FAFF"
+    "\u2600-\u26FF"          # misc symbols
+    "\u2700-\u27BF"          # dingbats
+    "]+",
+    flags=re.UNICODE,
+)
+
 def clean_html(text: str) -> str:
     """
     Remove HTML tags from text.
@@ -82,6 +118,40 @@ def clean_html(text: str) -> str:
     clean = soup.get_text(separator=" ")
     
     return clean
+
+
+def normalize_unicode(text: str) -> str:
+    """
+    Normalize text to a consistent Unicode form.
+    """
+    if not text:
+        return ""
+    return unicodedata.normalize("NFC", text)
+
+
+def remove_urls_emails_handles(text: str) -> str:
+    """
+    Remove URLs, emails, mentions (@user) and hashtags (#tag).
+    """
+    if not text:
+        return ""
+
+    text = _URL_PATTERN.sub(" ", text)
+    text = _EMAIL_PATTERN.sub(" ", text)
+    text = _MENTION_HASHTAG_PATTERN.sub(" ", text)
+    return text
+
+
+def remove_emojis(text: str) -> str:
+    """
+    Remove emoji and common pictographs.
+
+    We keep it conservative to avoid touching alphabetic characters
+    in multilingual text.
+    """
+    if not text:
+        return ""
+    return _EMOJI_PATTERN.sub(" ", text)
 
 
 def normalize_whitespace(text: str) -> str:
@@ -116,20 +186,29 @@ def preprocess_text(
     lowercase: bool = True,
     remove_html: bool = True,
     normalize_ws: bool = True,
+    remove_urls_and_emails: bool = True,
+    remove_emoji: bool = True,
+    normalize_unicode_flag: bool = True,
 ) -> str:
     """
     Full text preprocessing pipeline.
     
     Pipeline steps:
-    1. HTML removal (optional)
-    2. Whitespace normalization (optional)
-    3. Lowercase conversion (optional)
+    1. Unicode normalization (optional)
+    2. HTML removal (optional)
+    3. URL/email/mention/hashtag removal (optional)
+    4. Emoji removal (optional)
+    5. Whitespace normalization (optional)
+    6. Lowercase conversion (optional)
     
     Args:
         text: Input text to preprocess
         lowercase: Whether to convert to lowercase
         remove_html: Whether to remove HTML tags
         normalize_ws: Whether to normalize whitespace
+        remove_urls_and_emails: Whether to strip URLs, emails, @handles and #hashtags
+        remove_emoji: Whether to strip emoji / pictographs
+        normalize_unicode_flag: Whether to normalize Unicode (NFC)
         
     Returns:
         Preprocessed text ready for embedding
@@ -140,20 +219,90 @@ def preprocess_text(
     """
     if not text:
         return ""
-    
+
+    # Step 0: Unicode normalization
+    if normalize_unicode_flag:
+        text = normalize_unicode(text)
+
     # Step 1: Remove HTML
     if remove_html:
         text = clean_html(text)
-    
-    # Step 2: Normalize whitespace
+
+    # Step 2: Remove URLs / emails / mentions / hashtags
+    if remove_urls_and_emails:
+        text = remove_urls_emails_handles(text)
+
+    # Step 3: Remove emoji
+    if remove_emoji:
+        text = remove_emojis(text)
+
+    # Step 4: Normalize whitespace
     if normalize_ws:
         text = normalize_whitespace(text)
-    
-    # Step 3: Lowercase
+
+    # Step 5: Lowercase
     if lowercase:
         text = text.lower()
     
     return text
+
+
+def is_noisy_review(
+    text: str,
+    min_chars: int = 20,
+    min_alpha_ratio: float = 0.3,
+    min_alpha_tokens: int = 3,
+) -> bool:
+    """
+    Heuristic to detect reviews that are essentially noise.
+
+    Examples: strings dominated by dots, punctuation or repeated patterns like
+    "... ... ...", with very few alphabetic characters.
+
+    Args:
+        text: Raw review text (will be minimally stripped before checks)
+        min_chars: Minimum length (after strip) to be considered meaningful
+        min_alpha_ratio: Minimum ratio of alphabetic characters to total length
+        min_alpha_tokens: Minimum number of alphabetic tokens required
+
+    Returns:
+        True if the review should be treated as noise and skipped.
+    """
+    if not text:
+        return True
+
+    raw = (text or "").strip()
+    if len(raw) < min_chars:
+        return True
+
+    # Work on a lightly preprocessed version (no HTML/URLs/emoji)
+    cleaned = preprocess_text(
+        raw,
+        lowercase=True,
+        remove_html=True,
+        normalize_ws=True,
+        remove_urls_and_emails=True,
+        remove_emoji=True,
+        normalize_unicode_flag=True,
+    )
+
+    if not cleaned:
+        return True
+
+    total_len = len(cleaned)
+    alpha_count = sum(ch.isalpha() for ch in cleaned)
+    if total_len == 0:
+        return True
+
+    alpha_ratio = alpha_count / total_len
+    if alpha_ratio < min_alpha_ratio:
+        return True
+
+    tokens = [tok for tok in cleaned.split() if tok.isalpha()]
+    if len(tokens) < min_alpha_tokens:
+        return True
+
+    return False
 
 
 # ============================================

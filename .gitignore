@@ -40,12 +40,17 @@ wheels/
 *.log
 logs/
 
-# Data & Models
+# Data & Models (tránh commit model nặng, artifacts tạm)
 data/
 models/
+training/artifacts/absa_*/
 *.h5
 *.pt
 *.pth
+*.pkl
+*.joblib
+*.npy
+*.npz
 
 # Docker
 docker-compose.override.yml

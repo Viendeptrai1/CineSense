@@ -60,6 +60,17 @@ async function searchRecommendations(query, limit = 24) {
     return response.json();
 }
 
+async function getAbsaAnalysis(movieId) {
+    const response = await fetch(`${API_BASE_URL}/absa/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ movie_id: movieId }),
+    });
+    if (response.status === 503) return null;
+    if (!response.ok) throw new Error('ABSA unavailable');
+    return response.json();
+}
+
 function showLoading() {
     if (elements.loading) elements.loading.classList.remove('hidden');
     if (elements.error) elements.error.classList.add('hidden');
@@ -326,6 +337,32 @@ function renderSimilarList(rows) {
     `).join('');
 }
 
+function sentimentIcon(sentiment) {
+    if (sentiment === 'positive') return '+';
+    if (sentiment === 'negative') return '−';
+    return '0';
+}
+
+function renderAbsaSection(data) {
+    const container = document.getElementById('detailAbsaList');
+    if (!container) return;
+    if (!data || !data.aspects || !data.aspects.length) {
+        container.innerHTML = '<p style="color:#666;">Aspect sentiment not available. Train ABSA model to enable.</p>';
+        return;
+    }
+    container.innerHTML = `
+        <div class="absa-grid">
+            ${data.aspects.map((a) => `
+                <div class="absa-item">
+                    <span class="absa-aspect">${a.aspect}</span>
+                    <span class="absa-sentiment" data-sentiment="${a.sentiment}">${sentimentIcon(a.sentiment)} ${a.sentiment}</span>
+                    <span class="absa-score">${(a.score * 100).toFixed(0)}%</span>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
 function renderMoviePage(movie) {
     if (!elements.movieDetailContainer) return;
     const posterUrl = getPosterUrl(movie.poster_path);
@@ -356,8 +393,22 @@ function renderMoviePage(movie) {
                 </div>
                 <section class="similar-section">
                     <h2 class="detail-section-title">Similar Movies</h2>
+                    <p class="detail-hint">
+                        When you open this page, the app calls <code>/movies/${movie.id}/similar</code>,
+                        which reads precomputed neighbors from TF-IDF / Sentence-BERT artifacts.
+                    </p>
                     <div id="detailSimilarList" class="similar-list">
                         <p style="color:#666;">Loading recommendations...</p>
+                    </div>
+                </section>
+                <section class="absa-section">
+                    <h2 class="detail-section-title">Aspect-Based Sentiment</h2>
+                    <p class="detail-hint">
+                        Sentiment by aspect (script, acting, visuals, etc.) powered by the ABSA model behind
+                        <code>/absa/analyze</code>. Each tile below comes from processing the movie's English reviews.
+                    </p>
+                    <div id="detailAbsaList" class="absa-list">
+                        <p style="color:#666;">Loading...</p>
                     </div>
                 </section>
                 <section class="reviews-section">
@@ -392,6 +443,12 @@ async function loadMovieDetailPage() {
             renderSimilarList(similar.results || []);
         } catch (_error) {
             renderSimilarList([]);
+        }
+        try {
+            const absa = await getAbsaAnalysis(movie.id);
+            renderAbsaSection(absa);
+        } catch (_err) {
+            renderAbsaSection(null);
         }
     } catch (error) {
         console.error('Load movie detail failed:', error);

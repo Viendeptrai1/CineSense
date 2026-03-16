@@ -18,7 +18,7 @@ from sqlalchemy import text
 
 from api import __version__
 from api.schemas import HealthResponse
-from api.routes import movies, recommendations
+from api.routes import movies, recommendations, absa as absa_routes
 from etl_pipeline.db_postgres import get_session, CoreMovie
 
 
@@ -97,6 +97,7 @@ app.add_middleware(
 
 app.include_router(movies.router)
 app.include_router(recommendations.router)
+app.include_router(absa_routes.router)
 
 
 # ============================================

@@ -11,6 +11,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
 from joblib import dump
 
+from etl_pipeline.embedder import preprocess_text
 from training.config import config
 from training.data.loaders import load_movie_records
 from training.data.profiles import build_profiles
@@ -36,11 +37,17 @@ def train_tfidf(top_k: int, artifact_name: str) -> Path:
     movies = load_movie_records(only_english_reviews=True)
     profiles = build_profiles(movies)
 
+    # Reuse the same cleaning/normalization pipeline as the encoder
+    def _preprocess(text: str) -> str:
+        return preprocess_text(text)
+
     vectorizer = TfidfVectorizer(
         min_df=2,
         max_df=0.9,
         ngram_range=(1, 2),
         strip_accents="unicode",
+        stop_words="english",
+        preprocessor=_preprocess,
     )
     matrix = vectorizer.fit_transform(profiles)
 

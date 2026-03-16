@@ -214,6 +214,28 @@ class TrendingRecommendationsResponse(BaseModel):
 
 
 # ============================================
+# ABSA (Aspect-Based Sentiment Analysis)
+# ============================================
+
+class AbsaAnalyzeRequest(BaseModel):
+    """Request for ABSA: provide movie_id and/or raw review text."""
+    movie_id: Optional[str] = Field(None, description="Movie UUID; reviews will be fetched from DB")
+    text: Optional[str] = Field(None, description="Raw review text to analyze")
+
+
+class AbsaAspectItem(BaseModel):
+    aspect: str
+    sentiment: str
+    score: float
+
+
+class AbsaAnalyzeResponse(BaseModel):
+    movie_id: Optional[str] = None
+    text: Optional[str] = None
+    aspects: List[AbsaAspectItem] = Field(default_factory=list)
+
+
+# ============================================
 # Health Check
 # ============================================
 

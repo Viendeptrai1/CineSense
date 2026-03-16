@@ -1,0 +1,110 @@
+{
+  "aspects": [
+    {
+      "index": 0,
+      "aspect": "script",
+      "sentiment": "negative"
+    },
+    {
+      "index": 1,
+      "aspect": "script",
+      "sentiment": "neutral"
+    },
+    {
+      "index": 2,
+      "aspect": "script",
+      "sentiment": "positive"
+    },
+    {
+      "index": 3,
+      "aspect": "acting",
+      "sentiment": "negative"
+    },
+    {
+      "index": 4,
+      "aspect": "acting",
+      "sentiment": "neutral"
+    },
+    {
+      "index": 5,
+      "aspect": "acting",
+      "sentiment": "positive"
+    },
+    {
+      "index": 6,
+      "aspect": "visuals",
+      "sentiment": "negative"
+    },
+    {
+      "index": 7,
+      "aspect": "visuals",
+      "sentiment": "neutral"
+    },
+    {
+      "index": 8,
+      "aspect": "visuals",
+      "sentiment": "positive"
+    },
+    {
+      "index": 9,
+      "aspect": "music",
+      "sentiment": "negative"
+    },
+    {
+      "index": 10,
+      "aspect": "music",
+      "sentiment": "neutral"
+    },
+    {
+      "index": 11,
+      "aspect": "music",
+      "sentiment": "positive"
+    },
+    {
+      "index": 12,
+      "aspect": "pacing",
+      "sentiment": "negative"
+    },
+    {
+      "index": 13,
+      "aspect": "pacing",
+      "sentiment": "neutral"
+    },
+    {
+      "index": 14,
+      "aspect": "pacing",
+      "sentiment": "positive"
+    },
+    {
+      "index": 15,
+      "aspect": "direction",
+      "sentiment": "negative"
+    },
+    {
+      "index": 16,
+      "aspect": "direction",
+      "sentiment": "neutral"
+    },
+    {
+      "index": 17,
+      "aspect": "direction",
+      "sentiment": "positive"
+    },
+    {
+      "index": 18,
+      "aspect": "overall",
+      "sentiment": "negative"
+    },
+    {
+      "index": 19,
+      "aspect": "overall",
+      "sentiment": "neutral"
+    },
+    {
+      "index": 20,
+      "aspect": "overall",
+      "sentiment": "positive"
+    }
+  ],
+  "num_labels": 21
+}

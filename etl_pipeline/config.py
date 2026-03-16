@@ -66,10 +66,33 @@ class EmbeddingSettings(BaseSettings):
         extra="ignore"
     )
     
-    # paraphrase-multilingual-MiniLM-L12-v2: 384-dim vectors with multilingual support
-    # Enables semantic search in Vietnamese & English ("phim kinh dị" ≈ "horror movie")
-    model: str = Field(default="paraphrase-multilingual-MiniLM-L12-v2", description="Sentence Transformer model")
-    dimension: int = Field(default=384, description="Embedding vector dimension")
+    # Default: all-mpnet-base-v2 — high-quality English sentence embeddings (768-dim)
+    # Optimized for semantic similarity on English review data.
+    model: str = Field(
+        default="sentence-transformers/all-mpnet-base-v2",
+        description="Sentence Transformer model used for similarity/search embeddings",
+    )
+    dimension: int = Field(
+        default=768,
+        description="Embedding vector dimension (must match the selected model)",
+    )
+
+
+class AbsaSettings(BaseSettings):
+    """Aspect-Based Sentiment Analysis model configuration."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="ABSA_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # Backbone encoder for ABSA classifier (English-only)
+    model_name: str = Field(
+        default="roberta-base",
+        description="HF model name for ABSA backbone (e.g., roberta-base, bert-base-uncased)",
+    )
 
 
 class ETLSettings(BaseSettings):
@@ -118,6 +141,7 @@ class Settings(BaseSettings):
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
     etl: ETLSettings = Field(default_factory=ETLSettings)
     tmdb: TMDBSettings = Field(default_factory=TMDBSettings)
+    absa: AbsaSettings = Field(default_factory=AbsaSettings)
 
 
 @lru_cache()

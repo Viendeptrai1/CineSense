@@ -39,6 +39,7 @@ from .db_postgres import (
     CoreGenre,
 )
 from .crawler import TMDBClient, TMDBMovie, TMDBReview, TMDBGenre
+from .embedder import is_noisy_review
 
 
 def _parse_tmdb_datetime(value: str) -> Optional[datetime]:
@@ -144,7 +145,10 @@ def process_tmdb_movie(
     reviews_inserted = 0
 
     for tmdb_review in tmdb_reviews:
-        if not tmdb_review.content or len(tmdb_review.content.strip()) < 20:
+        # Basic length + noise filtering to drop reviews like "... ... ..."
+        if not tmdb_review.content:
+            continue
+        if is_noisy_review(tmdb_review.content):
             continue
 
         if tmdb_review.tmdb_id in existing_review_ids:
