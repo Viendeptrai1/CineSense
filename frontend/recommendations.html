@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CineSense - Gợi ý cho bạn</title>
+    <meta name="description" content="Danh sách phim gợi ý theo gu người dùng">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <header class="header">
+        <div class="container header-inner">
+            <a href="index.html" class="logo">CineSense</a>
+            <nav class="nav-links">
+                <a href="index.html" class="nav-item">Trang chủ</a>
+                <a href="recommendations.html" class="nav-item active">Gợi ý cho bạn</a>
+                <a href="profile.html" class="nav-item">Hồ sơ người dùng</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container" style="margin-top: 100px; margin-bottom: 60px;">
+        <div class="section-header" id="resultsHeader">
+            <h2 class="section-title">Gợi ý cho bạn</h2>
+            <p style="color:#6b7280;margin-top:6px;">Dựa trên gu phim đã lưu trong hồ sơ.</p>
+            <div style="margin-top:12px; display:flex; gap:10px; flex-wrap: wrap;">
+                <a href="profile.html" class="btn-secondary">Chỉnh gu</a>
+                <button id="refreshRecommendationsBtn" class="btn-primary" type="button">Làm mới gợi ý</button>
+            </div>
+            <div style="margin-top:12px; display:flex; gap:14px; flex-wrap:wrap;">
+                <label class="advanced-field advanced-checkbox" style="flex-direction:row; gap:10px;">
+                    <input id="debugToggle" type="checkbox">
+                    <span>Hiện debug</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="grid-movies" id="resultsGrid"></div>
+
+        <div class="loading-container" id="loading">
+            <p>Đang tải gợi ý...</p>
+        </div>
+
+        <div class="loading-container hidden" id="noResults">
+            <h3>Chưa có gợi ý</h3>
+            <p>Hãy vào “Hồ sơ người dùng” để lưu gu phim (thể loại/từ khóa), rồi quay lại trang này.</p>
+        </div>
+
+        <div class="loading-container hidden" id="error">
+            <h3 style="color:#e50914;">Đã xảy ra lỗi</h3>
+            <p id="errorMessage">Vui lòng thử lại sau.</p>
+        </div>
+    </main>
+
+    <footer style="padding: 40px 0; text-align: center; color: #999; font-size: 0.9rem;">
+        <p>© 2026 CineSense.</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

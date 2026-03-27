@@ -216,13 +216,28 @@ class RecommendationSearchRequest(BaseModel):
     filters: Optional[RecommendationSearchFilters] = None
     absa_refine: bool = True
     explain: bool = False
+    debug: bool = False
     weights_override: Optional[RecommendationWeightsOverride] = None
+
+
+class RecommendationSearchDebug(BaseModel):
+    query_raw: str
+    query_normalized: str
+    tokens: List[str] = Field(default_factory=list)
+    query_type_requested: str
+    weights: Dict[str, float] = Field(default_factory=dict)
+    filters: Dict[str, Any] = Field(default_factory=dict)
+    absa_refine: bool
+    absa_intents: List[Dict[str, str]] = Field(default_factory=list)
+    semantic_ready: bool
+    absa_profile_ready: bool
 
 
 class RecommendationSearchResponse(BaseModel):
     query: str
     total_results: int
     model: str
+    debug: Optional[RecommendationSearchDebug] = None
     results: List[RecommendationItem]
 
 

@@ -9,6 +9,7 @@ from api.schemas import (
     RecommendationSearchResponse,
     TrendingRecommendationsResponse,
     RecommendationItem,
+    RecommendationSearchDebug,
 )
 
 
@@ -61,20 +62,34 @@ async def search_recommendations(payload: RecommendationSearchRequest) -> Recomm
             status_code=503,
             detail="Recommendation artifacts not ready. Train models under training/ first.",
         )
-    rows = store.search_movies(
-        payload.query,
-        limit=payload.limit,
-        query_type=payload.query_type or "auto",
-        filters=payload.filters.model_dump(exclude_none=True) if payload.filters else None,
-        absa_refine=payload.absa_refine,
-        explain=payload.explain,
-        weights_override=payload.weights_override.model_dump(exclude_none=True) if payload.weights_override else None,
-    )
+    debug_obj = None
+    if payload.debug:
+        rows, debug = store.search_movies_with_debug(
+            payload.query,
+            limit=payload.limit,
+            query_type=payload.query_type or "auto",
+            filters=payload.filters.model_dump(exclude_none=True) if payload.filters else None,
+            absa_refine=payload.absa_refine,
+            explain=payload.explain,
+            weights_override=payload.weights_override.model_dump(exclude_none=True) if payload.weights_override else None,
+        )
+        debug_obj = RecommendationSearchDebug(**(debug or {})) if debug else None
+    else:
+        rows = store.search_movies(
+            payload.query,
+            limit=payload.limit,
+            query_type=payload.query_type or "auto",
+            filters=payload.filters.model_dump(exclude_none=True) if payload.filters else None,
+            absa_refine=payload.absa_refine,
+            explain=payload.explain,
+            weights_override=payload.weights_override.model_dump(exclude_none=True) if payload.weights_override else None,
+        )
     results = [RecommendationItem(**item) for item in rows]
     return RecommendationSearchResponse(
         query=payload.query,
         total_results=len(results),
         model=_model_name(),
+        debug=debug_obj,
         results=results,
     )
 

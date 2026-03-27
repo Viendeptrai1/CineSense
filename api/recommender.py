@@ -160,17 +160,20 @@ class RecommendationStore:
         explain: bool = False,
         weights_override: Optional[dict[str, float]] = None,
     ) -> list[dict[str, Any]]:
-        q = (query or "").strip().lower()
-        query_terms = {token for token in q.split() if token}
-        if not q or not query_terms:
+        prepared = self._prepare_search(
+            query=query,
+            query_type=query_type,
+            filters=filters,
+            absa_refine=absa_refine,
+            weights_override=weights_override,
+        )
+        if prepared is None:
             return []
-
-        def _norm_tokens(s: str) -> list[str]:
-            return [t for t in re.sub(r"[^a-zA-Z0-9\s]+", " ", str(s).lower()).split() if t]
+        q, norm_tokens, w_title, w_genre, w_sem, intents, active_filters, semantic_map = prepared
 
         def _title_score(query_text: str, title: str) -> float:
-            qn = " ".join(_norm_tokens(query_text))
-            tn = " ".join(_norm_tokens(title))
+            qn = " ".join(norm_tokens(query_text))
+            tn = " ".join(norm_tokens(title))
             if not qn or not tn:
                 return 0.0
             ratio = SequenceMatcher(None, qn, tn).ratio()
@@ -180,72 +183,20 @@ class RecommendationStore:
             return 0.6 * ratio + 0.4 * overlap
 
         def _genre_score(query_text: str, genres: list[str]) -> float:
-            qset = set(_norm_tokens(query_text))
+            qset = set(norm_tokens(query_text))
             if not qset:
                 return 0.0
             gset: set[str] = set()
             for g in genres or []:
-                gset.update(_norm_tokens(g))
+                gset.update(norm_tokens(g))
             if not gset:
                 return 0.0
             hits = sum(1 for tok in qset if tok in gset)
             return hits / max(1, len(qset))
-
-        def _weights(query_text: str) -> tuple[float, float, float]:
-            n = len(_norm_tokens(query_text))
-            if query_type == "title":
-                return (1.0, 0.7, 0.2)
-            if query_type == "genre":
-                return (0.4, 1.0, 0.3)
-            if query_type == "context":
-                return (0.2, 0.7, 1.0)
-            if n <= 3:
-                return (1.0, 0.8, 0.3)
-            if n <= 6:
-                return (0.7, 0.8, 0.6)
-            return (0.2, 0.8, 1.0)
-
-        def _infer_absa_intents(query_text: str) -> list[tuple[str, str]]:
-            qt = query_text.lower()
-            mapping = {
-                "overall": {"positive": ["hay", "xuất sắc", "good", "great", "amazing", "excellent"]},
-                "script": {"positive": ["kịch bản hay", "plot twist", "script", "story", "mind-bending"]},
-                "visuals": {"positive": ["kỹ xảo đẹp", "cgi", "visual", "visuals", "cinematography"]},
-                "acting": {"positive": ["diễn xuất", "acting", "actor", "performance"]},
-                "pacing": {"positive": ["pace", "nhịp độ", "cuốn", "fast paced"]},
-                "music": {"positive": ["nhạc", "soundtrack", "music"]},
-                "direction": {"positive": ["đạo diễn", "director", "direction"]},
-            }
-            intents: list[tuple[str, str]] = []
-            for aspect, sent_map in mapping.items():
-                for sent, kws in sent_map.items():
-                    if any(kw in qt for kw in kws):
-                        intents.append((aspect, sent))
-            return intents
-
-        w_title, w_genre, w_sem = _weights(q)
-        if weights_override:
-            w_title = float(weights_override.get("title", w_title))
-            w_genre = float(weights_override.get("genre", w_genre))
-            w_sem = float(weights_override.get("semantic", w_sem))
-        intents = _infer_absa_intents(q)
-        active_filters = filters or {}
         filter_genres = {str(g).lower() for g in active_filters.get("genres", []) if str(g).strip()}
         min_year = active_filters.get("min_year")
         max_year = active_filters.get("max_year")
         min_rating = active_filters.get("min_rating")
-
-        # Query-time semantic score from TF-IDF corpus
-        semantic_map: dict[str, float] = {}
-        if self.tfidf_vectorizer is not None and self.tfidf_matrix is not None and self.search_ids:
-            try:
-                qv = self.tfidf_vectorizer.transform([q])
-                sims = cosine_similarity(qv, self.tfidf_matrix).ravel()
-                mx = float(np.max(sims)) if sims.size else 0.0
-                norm = sims / mx if mx > 0 else sims
-                semantic_map = {mid: float(norm[i]) for i, mid in enumerate(self.search_ids)}
-            except Exception:
-                semantic_map = {}
 
         scored = []
         for row in self.movie_index.values():
@@ -310,6 +261,127 @@ class RecommendationStore:
             }
             for score, row, t_score, g_score, s_score, bonus in scored[:limit]
         ]
+
+    def search_movies_with_debug(
+        self,
+        query: str,
+        limit: int = 10,
+        query_type: str = "auto",
+        filters: Optional[dict[str, Any]] = None,
+        absa_refine: bool = True,
+        explain: bool = False,
+        weights_override: Optional[dict[str, float]] = None,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+        prepared = self._prepare_search(
+            query=query,
+            query_type=query_type,
+            filters=filters,
+            absa_refine=absa_refine,
+            weights_override=weights_override,
+        )
+        if prepared is None:
+            return ([], None)
+        q, norm_tokens, w_title, w_genre, w_sem, intents, active_filters, semantic_map = prepared
+        rows = self.search_movies(
+            query=query,
+            limit=limit,
+            query_type=query_type,
+            filters=filters,
+            absa_refine=absa_refine,
+            explain=explain,
+            weights_override=weights_override,
+        )
+        debug = {
+            "query_raw": query,
+            "query_normalized": q,
+            "tokens": norm_tokens(query),
+            "query_type_requested": query_type,
+            "weights": {"title": float(w_title), "genre": float(w_genre), "semantic": float(w_sem)},
+            "filters": active_filters,
+            "absa_refine": bool(absa_refine),
+            "absa_intents": [{"aspect": a, "sentiment": s} for a, s in intents],
+            "semantic_ready": bool(self.tfidf_vectorizer is not None and self.tfidf_matrix is not None and semantic_map),
+            "absa_profile_ready": bool(self.absa_movie_profiles),
+        }
+        return (rows, debug)
+
+    def _prepare_search(
+        self,
+        query: str,
+        query_type: str,
+        filters: Optional[dict[str, Any]],
+        absa_refine: bool,
+        weights_override: Optional[dict[str, float]],
+    ) -> tuple[
+        str,
+        Any,
+        float,
+        float,
+        float,
+        list[tuple[str, str]],
+        dict[str, Any],
+        dict[str, float],
+    ] | None:
+        q = (query or "").strip().lower()
+        query_terms = {token for token in q.split() if token}
+        if not q or not query_terms:
+            return None
+
+        def _norm_tokens(s: str) -> list[str]:
+            return [t for t in re.sub(r"[^a-zA-Z0-9\s]+", " ", str(s).lower()).split() if t]
+
+        def _weights(query_text: str) -> tuple[float, float, float]:
+            n = len(_norm_tokens(query_text))
+            if query_type == "title":
+                return (1.0, 0.7, 0.2)
+            if query_type == "genre":
+                return (0.4, 1.0, 0.3)
+            if query_type == "context":
+                return (0.2, 0.7, 1.0)
+            if n <= 3:
+                return (1.0, 0.8, 0.3)
+            if n <= 6:
+                return (0.7, 0.8, 0.6)
+            return (0.2, 0.8, 1.0)
+
+        def _infer_absa_intents(query_text: str) -> list[tuple[str, str]]:
+            qt = query_text.lower()
+            mapping = {
+                "overall": {"positive": ["hay", "xuất sắc", "good", "great", "amazing", "excellent"]},
+                "script": {"positive": ["kịch bản hay", "plot twist", "script", "story", "mind-bending"]},
+                "visuals": {"positive": ["kỹ xảo đẹp", "cgi", "visual", "visuals", "cinematography"]},
+                "acting": {"positive": ["diễn xuất", "acting", "actor", "performance"]},
+                "pacing": {"positive": ["pace", "nhịp độ", "cuốn", "fast paced"]},
+                "music": {"positive": ["nhạc", "soundtrack", "music"]},
+                "direction": {"positive": ["đạo diễn", "director", "direction"]},
+            }
+            intents: list[tuple[str, str]] = []
+            for aspect, sent_map in mapping.items():
+                for sent, kws in sent_map.items():
+                    if any(kw in qt for kw in kws):
+                        intents.append((aspect, sent))
+            return intents
+
+        w_title, w_genre, w_sem = _weights(q)
+        if weights_override:
+            w_title = float(weights_override.get("title", w_title))
+            w_genre = float(weights_override.get("genre", w_genre))
+            w_sem = float(weights_override.get("semantic", w_sem))
+        intents = _infer_absa_intents(q) if absa_refine else []
+        active_filters = filters or {}
+
+        semantic_map: dict[str, float] = {}
+        if self.tfidf_vectorizer is not None and self.tfidf_matrix is not None and self.search_ids:
+            try:
+                qv = self.tfidf_vectorizer.transform([q])
+                sims = cosine_similarity(qv, self.tfidf_matrix).ravel()
+                mx = float(np.max(sims)) if sims.size else 0.0
+                norm = sims / mx if mx > 0 else sims
+                semantic_map = {mid: float(norm[i]) for i, mid in enumerate(self.search_ids)}
+            except Exception:
+                semantic_map = {}
+
+        return (q, _norm_tokens, w_title, w_genre, w_sem, intents, active_filters, semantic_map)
 
 
 _store: RecommendationStore | None = None

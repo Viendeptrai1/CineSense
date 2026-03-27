@@ -16,17 +16,9 @@ const elements = {
     movieDetailContainer: document.getElementById('movieDetailContainer'),
     recommendationQuery: document.getElementById('recommendationQuery'),
     recommendationSearchBtn: document.getElementById('recommendationSearchBtn'),
-    profileRecommendBtn: document.getElementById('profileRecommendBtn'),
     recommendationResetBtn: document.getElementById('recommendationResetBtn'),
-    advancedToggleBtn: document.getElementById('advancedToggleBtn'),
-    advancedSearchPanel: document.getElementById('advancedSearchPanel'),
-    queryTypeSelect: document.getElementById('queryTypeSelect'),
-    filterGenresInput: document.getElementById('filterGenresInput'),
-    filterMinYearInput: document.getElementById('filterMinYearInput'),
-    filterMaxYearInput: document.getElementById('filterMaxYearInput'),
-    filterMinRatingInput: document.getElementById('filterMinRatingInput'),
-    absaRefineToggle: document.getElementById('absaRefineToggle'),
-    explainToggle: document.getElementById('explainToggle'),
+    refreshRecommendationsBtn: document.getElementById('refreshRecommendationsBtn'),
+    debugToggle: document.getElementById('debugToggle'),
     profileForm: document.getElementById('profileForm'),
     prefKeywords: document.getElementById('prefKeywords'),
     prefMinYear: document.getElementById('prefMinYear'),
@@ -41,7 +33,6 @@ const state = {
     totalMovies: 0,
     totalPages: 0,
     mode: 'catalog',
-    advancedOpen: true,
 };
 
 async function getMovies(page = 1, pageSize = 24) {
@@ -69,30 +60,14 @@ async function getTrendingRecommendations(limit = 24) {
 }
 
 function buildRecommendationPayload(query, limit = 24) {
-    const queryType = elements.queryTypeSelect?.value || 'auto';
-    const genresRaw = elements.filterGenresInput?.value || '';
-    const genres = genresRaw
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean);
-    const minYearValue = elements.filterMinYearInput?.value?.trim();
-    const maxYearValue = elements.filterMaxYearInput?.value?.trim();
-    const minRatingValue = elements.filterMinRatingInput?.value?.trim();
-    const filters = {};
-    if (genres.length) filters.genres = genres;
-    if (minYearValue) filters.min_year = Number.parseInt(minYearValue, 10);
-    if (maxYearValue) filters.max_year = Number.parseInt(maxYearValue, 10);
-    if (minRatingValue) filters.min_rating = Number.parseFloat(minRatingValue);
-
-    const payload = {
+    return {
         query,
         limit,
-        query_type: queryType,
-        absa_refine: elements.absaRefineToggle ? elements.absaRefineToggle.checked : true,
-        explain: elements.explainToggle ? elements.explainToggle.checked : false,
+        query_type: 'auto',
+        absa_refine: true,
+        explain: true,
+        debug: elements.debugToggle ? elements.debugToggle.checked : false,
     };
-    if (Object.keys(filters).length) payload.filters = filters;
-    return payload;
 }
 
 function normalizeRecommendationResult(movie) {
@@ -175,15 +150,6 @@ function clearUserProfile() {
 function applyProfileDefaultsOnCatalog() {
     const profile = loadUserProfile();
     if (!profile) return;
-    if (elements.filterGenresInput && !elements.filterGenresInput.value && Array.isArray(profile.genres) && profile.genres.length) {
-        elements.filterGenresInput.value = profile.genres.join(', ');
-    }
-    if (elements.filterMinYearInput && !elements.filterMinYearInput.value && profile.min_year) {
-        elements.filterMinYearInput.value = String(profile.min_year);
-    }
-    if (elements.absaRefineToggle && typeof profile.absa_refine === 'boolean') {
-        elements.absaRefineToggle.checked = profile.absa_refine;
-    }
     if (elements.recommendationQuery && !elements.recommendationQuery.value && profile.keywords) {
         elements.recommendationQuery.value = profile.keywords;
     }
@@ -311,6 +277,48 @@ function renderHeader(title, subtitle) {
     elements.resultsHeader.innerHTML = `
         <h2 class="section-title">${title}</h2>
         <p style="color: #9ca3af; margin-top: 4px; font-size: 0.95rem;">${subtitle}</p>
+        <div id="debugPanel" class="hidden" style="margin-top: 12px;"></div>
+    `;
+}
+
+function renderDebugPanel(debug, payload) {
+    const panel = document.getElementById('debugPanel');
+    if (!panel) return;
+    const enabled = elements.debugToggle ? elements.debugToggle.checked : false;
+    if (!enabled || !debug) {
+        panel.classList.add('hidden');
+        panel.innerHTML = '';
+        return;
+    }
+    panel.classList.remove('hidden');
+    const pretty = (obj) => {
+        try {
+            return JSON.stringify(obj, null, 2);
+        } catch (_e) {
+            return String(obj);
+        }
+    };
+    panel.innerHTML = `
+        <div class="advanced-panel" style="padding: 14px;">
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <span class="score-chip">mode: ${debug.query_type_requested || 'auto'}</span>
+                <span class="score-chip">w_title: ${Number(debug.weights?.title ?? 0).toFixed(2)}</span>
+                <span class="score-chip">w_genre: ${Number(debug.weights?.genre ?? 0).toFixed(2)}</span>
+                <span class="score-chip">w_sem: ${Number(debug.weights?.semantic ?? 0).toFixed(2)}</span>
+                <span class="score-chip">semantic_ready: ${debug.semantic_ready ? 'yes' : 'no'}</span>
+                <span class="score-chip">absa_profile_ready: ${debug.absa_profile_ready ? 'yes' : 'no'}</span>
+            </div>
+            <div style="margin-top: 10px; display:grid; gap:10px;">
+                <div>
+                    <div style="color:#9ca3af; font-size:0.9rem; margin-bottom:6px;">Query normalize & tokens</div>
+                    <pre style="white-space:pre-wrap; background:#0b1220; color:#d1d5db; padding:12px; border-radius:12px; overflow:auto;">${pretty({ query_raw: debug.query_raw, query_normalized: debug.query_normalized, tokens: debug.tokens, absa_intents: debug.absa_intents })}</pre>
+                </div>
+                <div>
+                    <div style="color:#9ca3af; font-size:0.9rem; margin-bottom:6px;">Request payload gửi lên API</div>
+                    <pre style="white-space:pre-wrap; background:#0b1220; color:#d1d5db; padding:12px; border-radius:12px; overflow:auto;">${pretty(payload)}</pre>
+                </div>
+            </div>
+        </div>
     `;
 }
 
@@ -378,6 +386,7 @@ async function runRecommendationSearch() {
         if (!data.results.length) return showNoResults();
         const modeLabel = payload.query_type || 'auto';
         renderHeader('Kết quả tìm gợi ý', `"${query}" • mô hình: ${data.model} • chế độ: ${modeLabel}`);
+        renderDebugPanel(data.debug || null, payload);
         renderMovieCards((data.results || []).map(normalizeRecommendationResult));
     } catch (error) {
         console.error('Recommendation search failed:', error);
@@ -385,30 +394,45 @@ async function runRecommendationSearch() {
     }
 }
 
-async function runProfileRecommendation() {
+function buildProfileQuery(profile) {
+    const parts = [];
+    if (profile?.keywords) parts.push(profile.keywords);
+    if (Array.isArray(profile?.genres) && profile.genres.length) parts.push(profile.genres.slice(0, 3).join(' '));
+    return parts.join(' ').trim();
+}
+
+function buildPayloadFromProfile(profile, limit = 24) {
+    const query = buildProfileQuery(profile);
+    const payload = buildRecommendationPayload(query || 'movie', limit);
+    payload.absa_refine = profile?.absa_refine !== false;
+    if (profile?.min_year) payload.filters = { min_year: profile.min_year };
+    if (Array.isArray(profile?.genres) && profile.genres.length) {
+        payload.filters = { ...(payload.filters || {}), genres: profile.genres };
+    }
+    return payload;
+}
+
+async function loadRecommendationsForYou() {
     const profile = loadUserProfile();
     if (!profile) {
-        showError('Chưa có hồ sơ. Vui lòng vào trang Hồ sơ người dùng để lưu gu phim.');
+        showNoResults();
         return;
     }
-    if (elements.filterGenresInput && Array.isArray(profile.genres)) {
-        elements.filterGenresInput.value = profile.genres.join(', ');
+    const payload = buildPayloadFromProfile(profile, 24);
+    state.mode = 'recommendation';
+    showLoading();
+    removePagination();
+    try {
+        const data = await searchRecommendations(payload);
+        hideLoading();
+        const results = (data.results || []).map(normalizeRecommendationResult);
+        if (!results.length) return showNoResults();
+        renderHeader('Gợi ý cho bạn', `Dựa trên hồ sơ • mô hình: ${data.model}`);
+        renderDebugPanel(data.debug || null, payload);
+        renderMovieCards(results);
+    } catch (error) {
+        showError(error.message || 'Không thể tải gợi ý');
     }
-    if (elements.filterMinYearInput) {
-        elements.filterMinYearInput.value = profile.min_year ? String(profile.min_year) : '';
-    }
-    if (elements.absaRefineToggle && typeof profile.absa_refine === 'boolean') {
-        elements.absaRefineToggle.checked = profile.absa_refine;
-    }
-    const profileQuery = (profile.keywords || '').trim();
-    if (elements.recommendationQuery) {
-        elements.recommendationQuery.value = profileQuery;
-    }
-    if (!profileQuery) {
-        showError('Hồ sơ chưa có từ khóa gu phim. Hãy thêm từ khóa trong Hồ sơ người dùng.');
-        return;
-    }
-    await runRecommendationSearch();
 }
 
 function renderPagination() {
@@ -646,28 +670,11 @@ function setupCatalogInteractions() {
             if (event.key === 'Enter') runRecommendationSearch();
         });
     }
-    if (elements.profileRecommendBtn) {
-        elements.profileRecommendBtn.addEventListener('click', () => runProfileRecommendation());
-    }
     if (elements.recommendationResetBtn) {
         elements.recommendationResetBtn.addEventListener('click', () => {
             if (elements.recommendationQuery) elements.recommendationQuery.value = '';
-            if (elements.filterGenresInput) elements.filterGenresInput.value = '';
-            if (elements.filterMinYearInput) elements.filterMinYearInput.value = '';
-            if (elements.filterMaxYearInput) elements.filterMaxYearInput.value = '';
-            if (elements.filterMinRatingInput) elements.filterMinRatingInput.value = '';
-            if (elements.queryTypeSelect) elements.queryTypeSelect.value = 'auto';
-            if (elements.absaRefineToggle) elements.absaRefineToggle.checked = true;
-            if (elements.explainToggle) elements.explainToggle.checked = true;
             state.currentPage = 1;
             loadMovies();
-        });
-    }
-    if (elements.advancedToggleBtn && elements.advancedSearchPanel) {
-        elements.advancedToggleBtn.addEventListener('click', () => {
-            state.advancedOpen = !state.advancedOpen;
-            elements.advancedSearchPanel.classList.toggle('hidden', !state.advancedOpen);
-            elements.advancedToggleBtn.textContent = state.advancedOpen ? 'Ẩn tìm kiếm nâng cao' : 'Tìm kiếm nâng cao';
         });
     }
 }
@@ -675,6 +682,11 @@ function setupCatalogInteractions() {
 function init() {
     if (elements.profileForm) {
         initProfilePage();
+        return;
+    }
+    if (elements.refreshRecommendationsBtn) {
+        elements.refreshRecommendationsBtn.addEventListener('click', () => loadRecommendationsForYou());
+        loadRecommendationsForYou();
         return;
     }
     if (elements.resultsGrid) {
