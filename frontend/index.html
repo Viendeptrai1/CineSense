@@ -34,6 +34,46 @@
                 <button id="recommendationSearchBtn" class="btn-primary">Search Recommendations</button>
                 <button id="recommendationResetBtn" class="btn-secondary">Back To Catalog</button>
             </div>
+            <div class="advanced-toggle-row">
+                <button id="advancedToggleBtn" class="btn-secondary" type="button">Advanced Search</button>
+            </div>
+            <div id="advancedSearchPanel" class="advanced-panel hidden">
+                <div class="advanced-grid">
+                    <label class="advanced-field">
+                        <span>Query type</span>
+                        <select id="queryTypeSelect">
+                            <option value="auto" selected>Auto</option>
+                            <option value="title">Title</option>
+                            <option value="genre">Genre</option>
+                            <option value="context">Context</option>
+                        </select>
+                    </label>
+                    <label class="advanced-field">
+                        <span>Genres (comma-separated)</span>
+                        <input id="filterGenresInput" type="text" placeholder="Action, Horror, Romance">
+                    </label>
+                    <label class="advanced-field">
+                        <span>Min year</span>
+                        <input id="filterMinYearInput" type="number" min="1900" max="2100" placeholder="2000">
+                    </label>
+                    <label class="advanced-field">
+                        <span>Max year</span>
+                        <input id="filterMaxYearInput" type="number" min="1900" max="2100" placeholder="2026">
+                    </label>
+                    <label class="advanced-field">
+                        <span>Min rating</span>
+                        <input id="filterMinRatingInput" type="number" min="0" max="10" step="0.1" placeholder="7.0">
+                    </label>
+                    <label class="advanced-field advanced-checkbox">
+                        <input id="absaRefineToggle" type="checkbox" checked>
+                        <span>Enable ABSA refine</span>
+                    </label>
+                    <label class="advanced-field advanced-checkbox">
+                        <input id="explainToggle" type="checkbox" checked>
+                        <span>Show score breakdown</span>
+                    </label>
+                </div>
+            </div>
             <p class="hero-hint-text">
                 Tip: typing here sends your text to <code>/recommendations/search</code> where it is embedded by
                 TF-IDF or Sentence-BERT, then nearest neighbors are retrieved from precomputed similarity artifacts.

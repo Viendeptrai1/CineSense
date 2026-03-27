@@ -61,7 +61,15 @@ async def search_recommendations(payload: RecommendationSearchRequest) -> Recomm
             status_code=503,
             detail="Recommendation artifacts not ready. Train models under training/ first.",
         )
-    rows = store.search_movies(payload.query, limit=payload.limit)
+    rows = store.search_movies(
+        payload.query,
+        limit=payload.limit,
+        query_type=payload.query_type or "auto",
+        filters=payload.filters.model_dump(exclude_none=True) if payload.filters else None,
+        absa_refine=payload.absa_refine,
+        explain=payload.explain,
+        weights_override=payload.weights_override.model_dump(exclude_none=True) if payload.weights_override else None,
+    )
     results = [RecommendationItem(**item) for item in rows]
     return RecommendationSearchResponse(
         query=payload.query,

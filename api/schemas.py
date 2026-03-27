@@ -186,6 +186,20 @@ class RecommendationItem(BaseModel):
     genres: List[str] = []
     review_count: int = 0
     score: Optional[float] = None
+    score_breakdown: Optional[Dict[str, float]] = None
+
+
+class RecommendationSearchFilters(BaseModel):
+    genres: Optional[List[str]] = None
+    min_year: Optional[int] = Field(default=None, ge=1900, le=2100)
+    max_year: Optional[int] = Field(default=None, ge=1900, le=2100)
+    min_rating: Optional[float] = Field(default=None, ge=0, le=10)
+
+
+class RecommendationWeightsOverride(BaseModel):
+    title: Optional[float] = Field(default=None, ge=0)
+    genre: Optional[float] = Field(default=None, ge=0)
+    semantic: Optional[float] = Field(default=None, ge=0)
 
 
 class SimilarMoviesResponse(BaseModel):
@@ -198,6 +212,11 @@ class SimilarMoviesResponse(BaseModel):
 class RecommendationSearchRequest(BaseModel):
     query: str = Field(..., min_length=2, max_length=300)
     limit: int = Field(default=10, ge=1, le=50)
+    query_type: Optional[str] = Field(default="auto", pattern="^(auto|title|genre|context)$")
+    filters: Optional[RecommendationSearchFilters] = None
+    absa_refine: bool = True
+    explain: bool = False
+    weights_override: Optional[RecommendationWeightsOverride] = None
 
 
 class RecommendationSearchResponse(BaseModel):

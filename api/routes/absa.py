@@ -11,6 +11,7 @@ import torch
 from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 from sqlalchemy.orm import Session, joinedload
+from transformers import AutoTokenizer
 
 from api.dependencies import get_db
 from api.schemas import AbsaAnalyzeRequest, AbsaAnalyzeResponse, AbsaAspectItem
@@ -21,23 +22,51 @@ router = APIRouter(prefix="/absa", tags=["ABSA"])
 
 # Path from project root so it works regardless of CWD when uvicorn runs
 _project_root = Path(__file__).resolve().parent.parent.parent
-_absa_artifact_dir = _project_root / "training" / "artifacts" / "absa_latest"
+_absa_notebook_artifact_dir = _project_root / "Notebook_Report" / "absa" / "artifacts" / "absa_bert_tiny_latest"
 _model_tokenizer_schema = None
 
 
 def _get_absa_model():
-    """Lazy-load ABSA model, tokenizer, and schema from artifact dir."""
+    """Lazy-load ABSA model/tokenizer from Notebook_Report artifact."""
     global _model_tokenizer_schema
     if _model_tokenizer_schema is not None:
         return _model_tokenizer_schema
-    if not _absa_artifact_dir.exists() or not (_absa_artifact_dir / "schema.json").exists():
-        raise HTTPException(
-            status_code=503,
-            detail="ABSA model not available. Run: python -m training.models.absa_model --labeled training/data/absa/labeled_absa_demo.jsonl",
-        )
+
     try:
-        from training.models.absa_model import load_absa_artifact, predict_aspects
-        model, tokenizer, schema = load_absa_artifact(_absa_artifact_dir)
+        from training.models.absa_model import (
+            AbsaClassifier,
+            load_absa_artifact,
+            predict_aspects,
+        )
+
+        model = None
+        tokenizer = None
+        schema = {}
+
+        if (_absa_notebook_artifact_dir / "model.pt").exists() and (_absa_notebook_artifact_dir / "tokenizer").exists():
+            ckpt_path = _absa_notebook_artifact_dir / "model.pt"
+            ckpt = torch.load(ckpt_path, map_location="cpu")
+            model_name = ckpt.get("model_name", "prajjwal1/bert-tiny")
+            state_dict = ckpt.get("state_dict", ckpt)
+
+            model = AbsaClassifier(model_name)
+            model.load_state_dict(state_dict, strict=False)
+            tokenizer = AutoTokenizer.from_pretrained(str(_absa_notebook_artifact_dir / "tokenizer"))
+            schema = {
+                "aspects": ckpt.get("aspects", []),
+                "sentiments": ckpt.get("sentiments", []),
+                "source": "Notebook_Report",
+            }
+            logger.info("Loaded ABSA artifact from {}", _absa_notebook_artifact_dir)
+        if model is None or tokenizer is None:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "ABSA model not available. "
+                    "Expected Notebook_Report/absa/artifacts/absa_bert_tiny_latest/."
+                ),
+            )
+
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model.to(device)
         model.eval()

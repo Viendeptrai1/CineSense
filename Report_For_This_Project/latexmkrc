@@ -1,4 +1,0 @@
-$pdf_mode = 1;
-$pdflatex = 'xelatex -interaction=nonstopmode -halt-on-error %O %S';
-$bibtex = 'bibtex %O %S';
-$clean_ext = 'bbl bcf blg run.xml';

@@ -227,6 +227,46 @@ button {
     color: rgba(255, 255, 255, 0.85);
 }
 
+.advanced-toggle-row {
+    margin-top: 10px;
+}
+
+.advanced-panel {
+    margin-top: 12px;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 12px;
+    padding: 14px;
+    text-align: left;
+}
+
+.advanced-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+.advanced-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.84rem;
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.advanced-field input,
+.advanced-field select {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+
+.advanced-checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+
 .hero-search-inline {
     display: flex;
     gap: 10px;
@@ -870,6 +910,23 @@ button {
     font-size: 0.88rem;
     color: var(--color-text-sub);
     line-height: 1.45;
+}
+
+.score-breakdown {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.score-chip {
+    font-size: 0.72rem;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    color: #374151;
+    font-weight: 700;
 }
 
 .movie-detail-layout {

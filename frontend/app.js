@@ -16,6 +16,15 @@ const elements = {
     recommendationQuery: document.getElementById('recommendationQuery'),
     recommendationSearchBtn: document.getElementById('recommendationSearchBtn'),
     recommendationResetBtn: document.getElementById('recommendationResetBtn'),
+    advancedToggleBtn: document.getElementById('advancedToggleBtn'),
+    advancedSearchPanel: document.getElementById('advancedSearchPanel'),
+    queryTypeSelect: document.getElementById('queryTypeSelect'),
+    filterGenresInput: document.getElementById('filterGenresInput'),
+    filterMinYearInput: document.getElementById('filterMinYearInput'),
+    filterMaxYearInput: document.getElementById('filterMaxYearInput'),
+    filterMinRatingInput: document.getElementById('filterMinRatingInput'),
+    absaRefineToggle: document.getElementById('absaRefineToggle'),
+    explainToggle: document.getElementById('explainToggle'),
 };
 
 const state = {
@@ -24,6 +33,7 @@ const state = {
     totalMovies: 0,
     totalPages: 0,
     mode: 'catalog',
+    advancedOpen: false,
 };
 
 async function getMovies(page = 1, pageSize = 24) {
@@ -50,11 +60,52 @@ async function getTrendingRecommendations(limit = 24) {
     return response.json();
 }
 
-async function searchRecommendations(query, limit = 24) {
+function buildRecommendationPayload(query, limit = 24) {
+    const queryType = elements.queryTypeSelect?.value || 'auto';
+    const genresRaw = elements.filterGenresInput?.value || '';
+    const genres = genresRaw
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    const minYearValue = elements.filterMinYearInput?.value?.trim();
+    const maxYearValue = elements.filterMaxYearInput?.value?.trim();
+    const minRatingValue = elements.filterMinRatingInput?.value?.trim();
+    const filters = {};
+    if (genres.length) filters.genres = genres;
+    if (minYearValue) filters.min_year = Number.parseInt(minYearValue, 10);
+    if (maxYearValue) filters.max_year = Number.parseInt(maxYearValue, 10);
+    if (minRatingValue) filters.min_rating = Number.parseFloat(minRatingValue);
+
+    const payload = {
+        query,
+        limit,
+        query_type: queryType,
+        absa_refine: elements.absaRefineToggle ? elements.absaRefineToggle.checked : true,
+        explain: elements.explainToggle ? elements.explainToggle.checked : false,
+    };
+    if (Object.keys(filters).length) payload.filters = filters;
+    return payload;
+}
+
+function normalizeRecommendationResult(movie) {
+    const normalized = normalizeMovieData(movie);
+    const sb = movie.score_breakdown || null;
+    if (!sb) return normalized;
+    normalized.score_breakdown = {
+        title: Number(sb.title ?? 0),
+        genre: Number(sb.genre ?? 0),
+        semantic: Number(sb.semantic ?? 0),
+        absa_bonus: Number(sb.absa_bonus ?? 0),
+        final: Number(sb.final ?? normalized.score ?? 0),
+    };
+    return normalized;
+}
+
+async function searchRecommendations(payload) {
     const response = await fetch(`${API_BASE_URL}/recommendations/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, limit }),
+        body: JSON.stringify(payload),
     });
     if (!response.ok) throw new Error('Search recommendations are unavailable');
     return response.json();
@@ -111,7 +162,21 @@ function normalizeMovieData(movie) {
         release_date: movie.release_date || null,
         genres: normalizedGenres,
         score: movie.score ?? null,
+        score_breakdown: movie.score_breakdown ?? null,
     };
+}
+
+function renderScoreBreakdown(movie) {
+    const sb = movie.score_breakdown;
+    if (!sb) return '';
+    return `
+        <div class="score-breakdown">
+            <span class="score-chip">T:${Number(sb.title ?? 0).toFixed(2)}</span>
+            <span class="score-chip">G:${Number(sb.genre ?? 0).toFixed(2)}</span>
+            <span class="score-chip">S:${Number(sb.semantic ?? 0).toFixed(2)}</span>
+            <span class="score-chip">ABSA:+${Number(sb.absa_bonus ?? 0).toFixed(2)}</span>
+        </div>
+    `;
 }
 
 function createMovieCard(inputMovie) {
@@ -137,6 +202,7 @@ function createMovieCard(inputMovie) {
             </div>
             ${movie.review_count ? `<div class="card-review-count">${movie.review_count} reviews</div>` : ''}
             ${movie.score !== null && movie.score !== undefined ? `<div class="card-review-count">Similarity: ${movie.score.toFixed(2)}</div>` : ''}
+            ${renderScoreBreakdown(movie)}
             ${movie.overview ? `<p class="card-overview">${movie.overview.slice(0, 120)}${movie.overview.length > 120 ? '...' : ''}</p>` : ''}
         </div>
     `;
@@ -223,11 +289,13 @@ async function runRecommendationSearch() {
     showLoading();
     removePagination();
     try {
-        const data = await searchRecommendations(query, 24);
+        const payload = buildRecommendationPayload(query, 24);
+        const data = await searchRecommendations(payload);
         hideLoading();
         if (!data.results.length) return showNoResults();
-        renderHeader('Recommendation Search', `"${query}" • model: ${data.model}`);
-        renderMovieCards(data.results);
+        const modeLabel = payload.query_type || 'auto';
+        renderHeader('Recommendation Search', `"${query}" • model: ${data.model} • mode: ${modeLabel}`);
+        renderMovieCards((data.results || []).map(normalizeRecommendationResult));
     } catch (error) {
         console.error('Recommendation search failed:', error);
         showError(error.message || 'Recommendation search is unavailable');
@@ -474,8 +542,22 @@ function setupCatalogInteractions() {
     if (elements.recommendationResetBtn) {
         elements.recommendationResetBtn.addEventListener('click', () => {
             if (elements.recommendationQuery) elements.recommendationQuery.value = '';
+            if (elements.filterGenresInput) elements.filterGenresInput.value = '';
+            if (elements.filterMinYearInput) elements.filterMinYearInput.value = '';
+            if (elements.filterMaxYearInput) elements.filterMaxYearInput.value = '';
+            if (elements.filterMinRatingInput) elements.filterMinRatingInput.value = '';
+            if (elements.queryTypeSelect) elements.queryTypeSelect.value = 'auto';
+            if (elements.absaRefineToggle) elements.absaRefineToggle.checked = true;
+            if (elements.explainToggle) elements.explainToggle.checked = true;
             state.currentPage = 1;
             loadMovies();
+        });
+    }
+    if (elements.advancedToggleBtn && elements.advancedSearchPanel) {
+        elements.advancedToggleBtn.addEventListener('click', () => {
+            state.advancedOpen = !state.advancedOpen;
+            elements.advancedSearchPanel.classList.toggle('hidden', !state.advancedOpen);
+            elements.advancedToggleBtn.textContent = state.advancedOpen ? 'Hide Advanced Search' : 'Advanced Search';
         });
     }
 }

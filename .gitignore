@@ -44,6 +44,8 @@ logs/
 data/
 models/
 training/artifacts/absa_*/
+training/artifacts/**
+!training/artifacts/README.md
 *.h5
 *.pt
 *.pth
@@ -51,6 +53,13 @@ training/artifacts/absa_*/
 *.joblib
 *.npy
 *.npz
+
+# Notebook_Report generated artifacts/data
+Notebook_Report/absa/artifacts/**
+Notebook_Report/training/artifacts/**
+Notebook_Report/**/*.csv
+Notebook_Report/**/*.json
+Notebook_Report/**/*.jsonl
 
 # Docker
 docker-compose.override.yml
