@@ -228,13 +228,13 @@ def main() -> None:
     parser.add_argument(
         "--labeled",
         type=Path,
-        default=Path("training/data/absa/labeled_absa_demo.jsonl"),
+        default=Path("Notebook_Report/absa/labeled_absa_auto.jsonl"),
         help="Path to labeled JSONL",
     )
     parser.add_argument(
         "--artifact-dir",
         type=Path,
-        default=Path("training/artifacts/absa_latest"),
+        default=Path("Notebook_Report/absa/artifacts/absa_bert_tiny_latest"),
         help="Output artifact directory",
     )
     parser.add_argument("--model", type=str, default=None, help="HF model name (default: from config)")
@@ -245,7 +245,7 @@ def main() -> None:
 
     if not args.labeled.exists():
         print(f"Labeled file not found: {args.labeled}")
-        print("Run: python -m training.data.absa_prepare then add 'labels' to create labeled JSONL.")
+        print("Use Notebook_Report/03b_ABSA_AutoLabeling.ipynb to generate labeled JSONL first.")
         return
 
     meta = train(

@@ -65,7 +65,7 @@ This spec must remain consistent across:
 Run:
 
 ```bash
-python scripts/audit_core_data.py --output-json training/artifacts/latest/core_audit.json
+python scripts/audit_core_data.py --output-json Notebook_Report/training/artifacts/latest/core_audit.json
 ```
 
 Use the output as:

@@ -71,6 +71,8 @@ async def search_recommendations(payload: RecommendationSearchRequest) -> Recomm
             filters=payload.filters.model_dump(exclude_none=True) if payload.filters else None,
             absa_refine=payload.absa_refine,
             explain=payload.explain,
+            user_history=payload.user_history,
+            rerank=payload.rerank,
             weights_override=payload.weights_override.model_dump(exclude_none=True) if payload.weights_override else None,
         )
         debug_obj = RecommendationSearchDebug(**(debug or {})) if debug else None
@@ -82,6 +84,8 @@ async def search_recommendations(payload: RecommendationSearchRequest) -> Recomm
             filters=payload.filters.model_dump(exclude_none=True) if payload.filters else None,
             absa_refine=payload.absa_refine,
             explain=payload.explain,
+            user_history=payload.user_history,
+            rerank=payload.rerank,
             weights_override=payload.weights_override.model_dump(exclude_none=True) if payload.weights_override else None,
         )
     results = [RecommendationItem(**item) for item in rows]

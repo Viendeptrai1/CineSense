@@ -19,13 +19,12 @@ Người chấm có thể:
     - Làm sạch nội dung (trim, giới hạn độ dài, loại review rác).
     - Lưu đủ ngữ cảnh: `author_avatar_url`, `rating`, `source_url`, `source_created_at`, `source`.
 
-- **Training layer (`training/`)**
-  - Xây dựng “movie profile” (title + overview + genres + review snippets).
-  - **Baseline TF‑IDF**: `training/baselines/train_tfidf.py` (sparse vectors + cosine similarity).
-  - **Sentence Transformer**: `training/models/train_sentence_transformer.py`
-    - Dùng encoder `sentence-transformers/all-mpnet-base-v2` (768‑dim, English) hoặc model cấu hình trong `etl_pipeline/config.py`.
-  - Sinh artifacts cho serving:
-    - `movie_index.json`, `similar_by_movie.json`, ma trận TF‑IDF / embeddings, `splits.json`, `metadata.json`, `eval.json`.
+- **Training layer (Notebook-first)**
+  - Quy ước chính thức: **mọi mô hình dùng runtime phải train trong `Notebook_Report/`**.
+  - Artifacts serving được export về:
+    - `Notebook_Report/training/artifacts/<artifact_name>/...`
+    - `Notebook_Report/absa/artifacts/<artifact_name>/...`
+  - Thư mục `training/` chỉ giữ utility/script legacy để tham khảo hoặc thử nghiệm cục bộ, **không phải luồng train chính thức cho demo/chấm điểm**.
 
 - **Runtime API (`api/`)**
   - **Discovery**: `GET /movies`, `GET /movies/{id}` đọc trực tiếp từ PostgreSQL core schema.
@@ -34,7 +33,7 @@ Người chấm có thể:
     - `GET /recommendations/trending`, `POST /recommendations/search`.
   - **ABSA**:
     - `POST /absa/analyze` với `{"movie_id": ...}` hoặc `{"text": ...}` trả về danh sách `(aspect, sentiment, score)`.
-    - Model được train từ notebook `notebooks/kaggle_absa_train.ipynb` trên dữ liệu trong `training/data/absa/`.
+  - Model được train trong notebook `Notebook_Report/03b_ABSA_AutoLabeling.ipynb` + `Notebook_Report/04_Advanced_ABSA_Modeling.ipynb`.
 
 - **Frontend (`frontend/`)**
   - Trang catalog với phân trang, badge “Has reviews”, rating trung bình.
@@ -68,7 +67,7 @@ CineSen/
 ├── api/                 # FastAPI app (discovery + recommendation + ABSA)
 ├── etl_pipeline/        # Crawler TMDB + core schema + config
 ├── frontend/            # Web UI (catalog + detail + Under the Hood section)
-├── training/            # Offline training (TF‑IDF, Sentence-BERT, evaluation)
+├── training/            # Legacy utilities (không phải luồng train chính thức)
 ├── infra/               # Docker & database seeds
 │   └── seed/postgres/   # 01-seed-data.sql.gz (4 900 movies, 9 373 reviews)
 ├── scripts/             # Tiện ích (test_api, run_backend, run_frontend, ...)
@@ -108,22 +107,24 @@ Truy cập: [http://localhost:3000](http://localhost:3000)
 > **Lưu ý:**
 > - Lần đầu `docker-compose up -d` sẽ tự tạo database và nạp toàn bộ dữ liệu đã cào (4 900 phim, 9 373 reviews, 19 genres). Không cần chạy thêm script gì.
 > - Nếu muốn reset database: `docker-compose down -v` rồi `docker-compose up -d`.
-> - Recommendation runtime đọc artifacts từ `training/artifacts/`. Nếu chưa có, frontend tự fallback về catalog chuẩn.
+> - Recommendation runtime ưu tiên artifacts từ `Notebook_Report/training/artifacts/`.
+> - Nếu chưa có artifact phù hợp, runtime fallback theo thứ tự nguồn khả dụng và frontend vẫn có thể quay về catalog chuẩn.
 
-### Build training artifacts (optional)
+### Huấn luyện mô hình (quy trình chính thức)
 
 ```bash
 source .venv/bin/activate
-# Similarity / recommender (English encoder)
-python -m training.baselines.train_tfidf --artifact-name tfidf_latest --top-k 20
-python -m training.models.train_sentence_transformer --artifact-name sbert_en_latest --top-k 20
-# ABSA (Aspect-Based Sentiment Analysis)
-python -m training.data.absa_prepare --output training/data/absa/absa_unlabeled.jsonl --limit 500
-# Sau khi gán nhãn file labeled_absa.jsonl:
-python -m training.models.absa_model --labeled training/data/absa/labeled_absa.jsonl --artifact-dir training/artifacts/absa_latest
-# Hoặc dùng demo labeled: python -m training.models.absa_model --labeled training/data/absa/labeled_absa_demo.jsonl
-# Train ABSA trên Kaggle (GPU): dùng notebook notebooks/kaggle_absa_train.ipynb — upload labeled JSONL làm dataset, bật GPU, Run All.
+# Mở và chạy tuần tự notebook trong Notebook_Report:
+# 01_Data_Collection.ipynb
+# 02_Data_Preprocessing_EDA.ipynb
+# 03_Modeling_Baselines.ipynb
+# 03b_ABSA_AutoLabeling.ipynb
+# 04_Advanced_ABSA_Modeling.ipynb
+# 05_Model_Evaluation.ipynb
+# 06_Demo_UseCases.ipynb
 ```
+
+Checklist export artifact cho runtime nằm tại: `Notebook_Report/README.md`.
 
 ### Test API (smoke test)
 
@@ -136,4 +137,4 @@ python scripts/test_api.py --base-url http://localhost:8000
 - **ABSA:** `POST /absa/analyze` với body `{"text": "..."}` hoặc `{"movie_id": "..."}` trả về bảng aspect–sentiment.
 
 ---
-*Dự án đang trong quá trình phát triển bền vững bởi **Vien dep trai**. 🎬✨*
+*Dự án đang trong quá trình phát triển bền vững bởi **Vien dep trai**.*

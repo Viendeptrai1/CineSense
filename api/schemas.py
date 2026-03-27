@@ -217,6 +217,8 @@ class RecommendationSearchRequest(BaseModel):
     absa_refine: bool = True
     explain: bool = False
     debug: bool = False
+    user_history: Optional[List[str]] = None
+    rerank: bool = False
     weights_override: Optional[RecommendationWeightsOverride] = None
 
 
@@ -231,6 +233,7 @@ class RecommendationSearchDebug(BaseModel):
     absa_intents: List[Dict[str, str]] = Field(default_factory=list)
     semantic_ready: bool
     absa_profile_ready: bool
+    personalization: Dict[str, Any] = Field(default_factory=dict)
 
 
 class RecommendationSearchResponse(BaseModel):

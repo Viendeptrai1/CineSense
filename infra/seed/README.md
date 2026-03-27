@@ -36,10 +36,12 @@ Sau đó commit các file trong `infra/seed/` lên GitHub.
 
 ## 4. Build artifacts recommendation (offline)
 
-Sau khi DB đã sẵn sàng, chạy pipeline huấn luyện:
+Sau khi DB đã sẵn sàng, chạy notebook trong `Notebook_Report/` để train và export artifacts:
 
-```bash
-python scripts/run_recommendation_pipeline.py
-```
+- `03_Modeling_Baselines.ipynb` (TF-IDF / retrieval baseline)
+- `04_Advanced_ABSA_Modeling.ipynb` (ABSA)
 
-Artifacts sẽ xuất ra `training/artifacts/` để API runtime đọc tại các endpoint recommendation.
+Artifacts runtime cần nằm ở:
+
+- `Notebook_Report/training/artifacts/...`
+- `Notebook_Report/absa/artifacts/...`

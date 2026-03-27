@@ -5,6 +5,7 @@
 const API_BASE_URL = 'http://localhost:8000';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
 const USER_PROFILE_KEY = 'cinesense_user_profile_v1';
+const SEARCH_HISTORY_KEY = 'cinesense_search_history_v1';
 
 const elements = {
     resultsHeader: document.getElementById('resultsHeader'),
@@ -19,6 +20,7 @@ const elements = {
     recommendationResetBtn: document.getElementById('recommendationResetBtn'),
     refreshRecommendationsBtn: document.getElementById('refreshRecommendationsBtn'),
     debugToggle: document.getElementById('debugToggle'),
+    rerankToggle: document.getElementById('rerankToggle'),
     profileForm: document.getElementById('profileForm'),
     prefKeywords: document.getElementById('prefKeywords'),
     prefMinYear: document.getElementById('prefMinYear'),
@@ -60,6 +62,7 @@ async function getTrendingRecommendations(limit = 24) {
 }
 
 function buildRecommendationPayload(query, limit = 24) {
+    const history = loadSearchHistory();
     return {
         query,
         limit,
@@ -67,6 +70,8 @@ function buildRecommendationPayload(query, limit = 24) {
         absa_refine: true,
         explain: true,
         debug: elements.debugToggle ? elements.debugToggle.checked : false,
+        user_history: history.length ? history : undefined,
+        rerank: elements.rerankToggle ? elements.rerankToggle.checked : false,
     };
 }
 
@@ -78,6 +83,8 @@ function normalizeRecommendationResult(movie) {
         title: Number(sb.title ?? 0),
         genre: Number(sb.genre ?? 0),
         semantic: Number(sb.semantic ?? 0),
+        bm25: Number(sb.bm25 ?? 0),
+        user_match: Number(sb.user_match ?? 0),
         absa_bonus: Number(sb.absa_bonus ?? 0),
         final: Number(sb.final ?? normalized.score ?? 0),
     };
@@ -145,6 +152,35 @@ function saveUserProfile(profile) {
 
 function clearUserProfile() {
     window.localStorage.removeItem(USER_PROFILE_KEY);
+}
+
+function loadSearchHistory() {
+    try {
+        const raw = window.localStorage.getItem(SEARCH_HISTORY_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((x) => typeof x === 'string' && x.trim()).slice(-30);
+    } catch (_e) {
+        return [];
+    }
+}
+
+function saveSearchHistory(items) {
+    try {
+        window.localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(items.slice(-30)));
+    } catch (_e) {
+        // ignore
+    }
+}
+
+function pushSearchHistory(query) {
+    const q = (query || '').trim();
+    if (!q) return;
+    const items = loadSearchHistory();
+    const next = items.filter((x) => x.toLowerCase() !== q.toLowerCase());
+    next.push(q);
+    saveSearchHistory(next);
 }
 
 function applyProfileDefaultsOnCatalog() {
@@ -224,6 +260,8 @@ function renderScoreBreakdown(movie) {
             <span class="score-chip">T:${Number(sb.title ?? 0).toFixed(2)}</span>
             <span class="score-chip">G:${Number(sb.genre ?? 0).toFixed(2)}</span>
             <span class="score-chip">S:${Number(sb.semantic ?? 0).toFixed(2)}</span>
+            <span class="score-chip">BM25:${Number(sb.bm25 ?? 0).toFixed(2)}</span>
+            <span class="score-chip">U:${Number(sb.user_match ?? 0).toFixed(2)}</span>
             <span class="score-chip">ABSA:+${Number(sb.absa_bonus ?? 0).toFixed(2)}</span>
         </div>
     `;
@@ -298,8 +336,18 @@ function renderDebugPanel(debug, payload) {
             return String(obj);
         }
     };
+    const explainer = (() => {
+        const n = Array.isArray(debug.tokens) ? debug.tokens.length : 0;
+        const w = debug.weights || {};
+        const intents = Array.isArray(debug.absa_intents) ? debug.absa_intents.length : 0;
+        const hist = debug.personalization ? Number(debug.personalization.history_count ?? 0) : 0;
+        const ce = debug.rerank?.enabled ? 'bật' : 'tắt';
+        return `Query ${n} token → auto-weight (T=${Number(w.title ?? 0).toFixed(2)}, G=${Number(w.genre ?? 0).toFixed(2)}, S=${Number(w.semantic ?? 0).toFixed(2)}). ABSA intents=${intents}. History=${hist}. Cross-Encoder=${ce}.`;
+    })();
+
     panel.innerHTML = `
         <div class="advanced-panel" style="padding: 14px;">
+            <div style="color:#e5e7eb; font-size:0.95rem; margin-bottom:10px;">${explainer}</div>
             <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
                 <span class="score-chip">mode: ${debug.query_type_requested || 'auto'}</span>
                 <span class="score-chip">w_title: ${Number(debug.weights?.title ?? 0).toFixed(2)}</span>
@@ -307,6 +355,9 @@ function renderDebugPanel(debug, payload) {
                 <span class="score-chip">w_sem: ${Number(debug.weights?.semantic ?? 0).toFixed(2)}</span>
                 <span class="score-chip">semantic_ready: ${debug.semantic_ready ? 'yes' : 'no'}</span>
                 <span class="score-chip">absa_profile_ready: ${debug.absa_profile_ready ? 'yes' : 'no'}</span>
+                ${debug.personalization ? `<span class="score-chip">history: ${Number(debug.personalization.history_count ?? 0)}</span>` : ''}
+                ${debug.personalization ? `<span class="score-chip">user_vec: ${debug.personalization.user_vec_ready ? 'yes' : 'no'}</span>` : ''}
+                ${debug.rerank ? `<span class="score-chip">rerank: ${debug.rerank.enabled ? 'on' : 'off'}</span>` : ''}
             </div>
             <div style="margin-top: 10px; display:grid; gap:10px;">
                 <div>
@@ -380,6 +431,7 @@ async function runRecommendationSearch() {
     showLoading();
     removePagination();
     try {
+        pushSearchHistory(query);
         const payload = buildRecommendationPayload(query, 24);
         const data = await searchRecommendations(payload);
         hideLoading();

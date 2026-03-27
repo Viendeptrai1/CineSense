@@ -48,6 +48,33 @@ Tài liệu này tóm tắt **bài toán**, **use case**, và **ánh xạ nội 
 
 ---
 
+## 3.1. Quy ước train model (bắt buộc)
+
+- Tất cả mô hình phục vụ demo/runtime phải train trong `Notebook_Report/`.
+- Không dùng script ngoài notebook làm nguồn artifact chính thức.
+- Sau mỗi lần train, phải export artifact đúng thư mục để API load được ngay.
+
+### Artifact output chuẩn cho runtime
+
+- Recommendation:
+  - `Notebook_Report/training/artifacts/tfidf_latest/`
+  - `Notebook_Report/training/artifacts/sbert_latest/` hoặc `sbert_en_latest/`
+  - file tối thiểu: `metadata.json`, `movie_index.json`, `similar_by_movie.json`
+  - nếu semantic embedding: thêm `embeddings.npy`
+- ABSA:
+  - `Notebook_Report/absa/artifacts/absa_bert_tiny_latest/`
+  - thêm `Notebook_Report/absa/absa_movie_profiles.json` để bật refine theo khía cạnh
+
+### Checklist trước khi demo web
+
+1. Artifact mới đã có trong `Notebook_Report/.../artifacts`.
+2. `metadata.json` có `artifact_type` đúng (`tfidf` hoặc `sentence_transformer`).
+3. Gọi endpoint reload recommendation (`POST /recommendations/reload`).
+4. Search có trả `model` đúng artifact đang dùng.
+5. Nếu dùng debug, kiểm tra `semantic_ready`/`absa_profile_ready` đúng kỳ vọng.
+
+---
+
 ## 4. Ánh xạ theo BAREM (10 điểm)
 
 Dưới đây là **cùng cấu trúc barem**, kèm **chỗ trình bày trong đồ án / notebook** (để bạn bảo vệ và viết báo cáo LaTeX/PDF).

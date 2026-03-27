@@ -14,12 +14,14 @@ qdrant-client>=1.7.1
 sentence-transformers>=2.2.2
 torch>=2.0.0
 transformers>=4.35.0
+accelerate>=0.26.0
 
 # Text Processing (spacy/nltk removed - Python 3.13 incompatible)
 # Using BeautifulSoup for HTML cleaning which is sufficient for Phase 1
 beautifulsoup4>=4.12.3
 lxml>=5.1.0
 vaderSentiment>=3.3.2
+rank-bm25>=0.2.2
 
 # Data Processing
 numpy>=1.26.0

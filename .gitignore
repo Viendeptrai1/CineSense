@@ -43,9 +43,6 @@ logs/
 # Data & Models (tránh commit model nặng, artifacts tạm)
 data/
 models/
-training/artifacts/absa_*/
-training/artifacts/**
-!training/artifacts/README.md
 *.h5
 *.pt
 *.pth

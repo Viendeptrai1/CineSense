@@ -25,14 +25,16 @@ python -m etl_pipeline.main --pages 10
 ## 3) Run data-quality audit
 
 ```bash
-python scripts/audit_core_data.py --output-json training/artifacts/latest/core_audit.json
+python scripts/audit_core_data.py --output-json Notebook_Report/training/artifacts/latest/core_audit.json
 ```
 
 ## 4) Build recommendation artifacts
 
-```bash
-python scripts/run_recommendation_pipeline.py
-```
+Use notebook-first workflow:
+
+- `Notebook_Report/03_Modeling_Baselines.ipynb`
+- `Notebook_Report/04_Advanced_ABSA_Modeling.ipynb`
+- `Notebook_Report/05_Model_Evaluation.ipynb`
 
 ## 5) Run API + frontend
 
@@ -45,10 +47,10 @@ cd frontend && python3 -m http.server 3000
 
 Use these outputs in report chapters:
 
-- `training/artifacts/latest/core_audit.json`
-- `training/artifacts/*/metadata.json`
-- `training/artifacts/*/eval.json`
+- `Notebook_Report/training/artifacts/latest/core_audit.json`
+- `Notebook_Report/training/artifacts/*/metadata.json`
+- `Notebook_Report/training/artifacts/*/eval.json`
 - screenshots from catalog/detail/recommendation flows
 
 Mapping reference:
-- `Report_For_This_Project/planning/implementation-evidence-map.md`
+- `Notebook_Report/README.md`
