@@ -180,7 +180,8 @@ button {
    ============================================ */
 .hero {
     position: relative;
-    height: 400px;
+    min-height: 400px;
+    height: auto;
     /* Cinematic height */
     width: 100%;
     background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
@@ -189,6 +190,8 @@ button {
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 56px 0 72px;
+    overflow: visible;
     margin-bottom: 40px;
     color: white;
 }
@@ -610,7 +613,9 @@ button {
     }
 
     .hero {
-        height: 300px;
+        min-height: 300px;
+        height: auto;
+        padding: 28px 0 40px;
     }
 }
 
@@ -891,6 +896,7 @@ button {
 }
 
 .card-review-badge {
+    display: none !important;
     position: absolute;
     top: 10px;
     left: 10px;
@@ -1159,6 +1165,78 @@ button {
     font-size: 0.9em;
 }
 
+.profile-page {
+    margin-top: 100px;
+    margin-bottom: 60px;
+}
+
+.profile-card {
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-soft);
+    padding: 28px;
+}
+
+.profile-subtitle {
+    color: var(--color-text-sub);
+    margin-bottom: 18px;
+}
+
+.profile-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.profile-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.profile-label {
+    font-weight: 700;
+}
+
+.profile-checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 8px;
+}
+
+.profile-checkbox-grid label,
+.profile-inline label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95rem;
+}
+
+.profile-field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.profile-form input[type="text"],
+.profile-form input[type="number"] {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.profile-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.profile-status {
+    min-height: 20px;
+    color: #15803d;
+    font-weight: 600;
+}
+
 @media (max-width: 960px) {
     .movie-detail-layout {
         grid-template-columns: 1fr;
@@ -1171,5 +1249,9 @@ button {
 
     .detail-title {
         font-size: 2rem;
+    }
+
+    .profile-field-row {
+        grid-template-columns: 1fr;
     }
 }

@@ -4,6 +4,7 @@
 
 const API_BASE_URL = 'http://localhost:8000';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
+const USER_PROFILE_KEY = 'cinesense_user_profile_v1';
 
 const elements = {
     resultsHeader: document.getElementById('resultsHeader'),
@@ -15,6 +16,7 @@ const elements = {
     movieDetailContainer: document.getElementById('movieDetailContainer'),
     recommendationQuery: document.getElementById('recommendationQuery'),
     recommendationSearchBtn: document.getElementById('recommendationSearchBtn'),
+    profileRecommendBtn: document.getElementById('profileRecommendBtn'),
     recommendationResetBtn: document.getElementById('recommendationResetBtn'),
     advancedToggleBtn: document.getElementById('advancedToggleBtn'),
     advancedSearchPanel: document.getElementById('advancedSearchPanel'),
@@ -25,6 +27,12 @@ const elements = {
     filterMinRatingInput: document.getElementById('filterMinRatingInput'),
     absaRefineToggle: document.getElementById('absaRefineToggle'),
     explainToggle: document.getElementById('explainToggle'),
+    profileForm: document.getElementById('profileForm'),
+    prefKeywords: document.getElementById('prefKeywords'),
+    prefMinYear: document.getElementById('prefMinYear'),
+    prefAbsaRefine: document.getElementById('prefAbsaRefine'),
+    clearProfileBtn: document.getElementById('clearProfileBtn'),
+    profileStatus: document.getElementById('profileStatus'),
 };
 
 const state = {
@@ -33,30 +41,30 @@ const state = {
     totalMovies: 0,
     totalPages: 0,
     mode: 'catalog',
-    advancedOpen: false,
+    advancedOpen: true,
 };
 
 async function getMovies(page = 1, pageSize = 24) {
     const response = await fetch(`${API_BASE_URL}/movies?page=${page}&page_size=${pageSize}`);
-    if (!response.ok) throw new Error('Failed to load movies');
+    if (!response.ok) throw new Error('Không thể tải danh sách phim');
     return response.json();
 }
 
 async function getMovieDetails(movieId) {
     const response = await fetch(`${API_BASE_URL}/movies/${movieId}`);
-    if (!response.ok) throw new Error('Failed to load movie details');
+    if (!response.ok) throw new Error('Không thể tải chi tiết phim');
     return response.json();
 }
 
 async function getSimilarMovies(movieId, limit = 8) {
     const response = await fetch(`${API_BASE_URL}/movies/${movieId}/similar?limit=${limit}`);
-    if (!response.ok) throw new Error('Similar movies are unavailable');
+    if (!response.ok) throw new Error('Không thể tải phim tương tự');
     return response.json();
 }
 
 async function getTrendingRecommendations(limit = 24) {
     const response = await fetch(`${API_BASE_URL}/recommendations/trending?limit=${limit}`);
-    if (!response.ok) throw new Error('Recommendations are unavailable');
+    if (!response.ok) throw new Error('Không thể tải gợi ý phim');
     return response.json();
 }
 
@@ -107,7 +115,7 @@ async function searchRecommendations(payload) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
     });
-    if (!response.ok) throw new Error('Search recommendations are unavailable');
+    if (!response.ok) throw new Error('Không thể tìm gợi ý');
     return response.json();
 }
 
@@ -118,7 +126,7 @@ async function getAbsaAnalysis(movieId) {
         body: JSON.stringify({ movie_id: movieId }),
     });
     if (response.status === 503) return null;
-    if (!response.ok) throw new Error('ABSA unavailable');
+    if (!response.ok) throw new Error('Không thể phân tích ABSA');
     return response.json();
 }
 
@@ -142,6 +150,82 @@ function showError(message) {
 function showNoResults() {
     hideLoading();
     if (elements.noResults) elements.noResults.classList.remove('hidden');
+}
+
+function loadUserProfile() {
+    try {
+        const raw = window.localStorage.getItem(USER_PROFILE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return null;
+        return parsed;
+    } catch (_e) {
+        return null;
+    }
+}
+
+function saveUserProfile(profile) {
+    window.localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
+}
+
+function clearUserProfile() {
+    window.localStorage.removeItem(USER_PROFILE_KEY);
+}
+
+function applyProfileDefaultsOnCatalog() {
+    const profile = loadUserProfile();
+    if (!profile) return;
+    if (elements.filterGenresInput && !elements.filterGenresInput.value && Array.isArray(profile.genres) && profile.genres.length) {
+        elements.filterGenresInput.value = profile.genres.join(', ');
+    }
+    if (elements.filterMinYearInput && !elements.filterMinYearInput.value && profile.min_year) {
+        elements.filterMinYearInput.value = String(profile.min_year);
+    }
+    if (elements.absaRefineToggle && typeof profile.absa_refine === 'boolean') {
+        elements.absaRefineToggle.checked = profile.absa_refine;
+    }
+    if (elements.recommendationQuery && !elements.recommendationQuery.value && profile.keywords) {
+        elements.recommendationQuery.value = profile.keywords;
+    }
+}
+
+function initProfilePage() {
+    if (!elements.profileForm) return;
+    const profile = loadUserProfile() || {};
+    const genreSet = new Set(profile.genres || []);
+    document.querySelectorAll('input[name="prefGenres"]').forEach((el) => {
+        el.checked = genreSet.has(el.value);
+    });
+    if (elements.prefKeywords) elements.prefKeywords.value = profile.keywords || '';
+    if (elements.prefMinYear) elements.prefMinYear.value = profile.min_year || '';
+    if (elements.prefAbsaRefine) elements.prefAbsaRefine.checked = profile.absa_refine !== false;
+
+    elements.profileForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const genres = Array.from(document.querySelectorAll('input[name="prefGenres"]:checked')).map((el) => el.value);
+        const payload = {
+            genres,
+            keywords: elements.prefKeywords?.value?.trim() || '',
+            min_year: elements.prefMinYear?.value ? Number.parseInt(elements.prefMinYear.value, 10) : null,
+            absa_refine: elements.prefAbsaRefine ? elements.prefAbsaRefine.checked : true,
+            updated_at: new Date().toISOString(),
+        };
+        saveUserProfile(payload);
+        if (elements.profileStatus) elements.profileStatus.textContent = 'Đã lưu hồ sơ thành công.';
+    });
+
+    if (elements.clearProfileBtn) {
+        elements.clearProfileBtn.addEventListener('click', () => {
+            clearUserProfile();
+            document.querySelectorAll('input[name="prefGenres"]').forEach((el) => {
+                el.checked = false;
+            });
+            if (elements.prefKeywords) elements.prefKeywords.value = '';
+            if (elements.prefMinYear) elements.prefMinYear.value = '';
+            if (elements.prefAbsaRefine) elements.prefAbsaRefine.checked = true;
+            if (elements.profileStatus) elements.profileStatus.textContent = 'Đã dọn hồ sơ.';
+        });
+    }
 }
 
 function getPosterUrl(posterPath) {
@@ -191,7 +275,6 @@ function createMovieCard(inputMovie) {
     card.innerHTML = `
         <div class="card-poster">
             ${posterUrl ? `<img src="${posterUrl}" alt="${movie.title}" loading="lazy">` : '<div style="height:100%;background:#eee;"></div>'}
-            ${movie.review_count ? '<div class="card-review-badge">Has reviews</div>' : ''}
             ${movie.average_rating ? `<div class="card-star-rating">★ ${movie.average_rating.toFixed(1)}</div>` : ''}
         </div>
         <div class="card-info">
@@ -200,8 +283,8 @@ function createMovieCard(inputMovie) {
                 <span>${year}</span>
                 ${genres.map((genre) => `<span class="card-genre">${genre.name}</span>`).join('')}
             </div>
-            ${movie.review_count ? `<div class="card-review-count">${movie.review_count} reviews</div>` : ''}
-            ${movie.score !== null && movie.score !== undefined ? `<div class="card-review-count">Similarity: ${movie.score.toFixed(2)}</div>` : ''}
+            ${movie.review_count ? `<div class="card-review-count">${movie.review_count} đánh giá</div>` : ''}
+            ${movie.score !== null && movie.score !== undefined ? `<div class="card-review-count">Độ phù hợp: ${movie.score.toFixed(2)}</div>` : ''}
             ${renderScoreBreakdown(movie)}
             ${movie.overview ? `<p class="card-overview">${movie.overview.slice(0, 120)}${movie.overview.length > 120 ? '...' : ''}</p>` : ''}
         </div>
@@ -243,7 +326,7 @@ function renderMovieList(data) {
     state.totalPages = Math.ceil(data.total / data.page_size);
     state.currentPage = data.page;
 
-    renderHeader('Movie Catalog', `${data.total} movies in PostgreSQL`);
+    renderHeader('Danh sách phim', `${data.total} phim trong cơ sở dữ liệu`);
     renderMovieCards(data.movies);
     renderPagination();
 }
@@ -256,7 +339,7 @@ async function loadMovies() {
         renderMovieList(data);
     } catch (error) {
         console.error('Load movies failed:', error);
-        showError(error.message || 'Could not load movie catalog');
+        showError(error.message || 'Không thể tải danh sách phim');
     }
 }
 
@@ -268,7 +351,7 @@ async function loadTrendingRecommendations() {
         const data = await getTrendingRecommendations(24);
         hideLoading();
         if (!data.results.length) return showNoResults();
-        renderHeader('Top Reviewed Picks', `Model: ${data.model}`);
+        renderHeader('Gợi ý nổi bật', `Mô hình: ${data.model}`);
         renderMovieCards(data.results);
     } catch (error) {
         // Fallback gracefully to catalog when artifacts are missing.
@@ -294,12 +377,38 @@ async function runRecommendationSearch() {
         hideLoading();
         if (!data.results.length) return showNoResults();
         const modeLabel = payload.query_type || 'auto';
-        renderHeader('Recommendation Search', `"${query}" • model: ${data.model} • mode: ${modeLabel}`);
+        renderHeader('Kết quả tìm gợi ý', `"${query}" • mô hình: ${data.model} • chế độ: ${modeLabel}`);
         renderMovieCards((data.results || []).map(normalizeRecommendationResult));
     } catch (error) {
         console.error('Recommendation search failed:', error);
-        showError(error.message || 'Recommendation search is unavailable');
+        showError(error.message || 'Không thể tìm gợi ý');
     }
+}
+
+async function runProfileRecommendation() {
+    const profile = loadUserProfile();
+    if (!profile) {
+        showError('Chưa có hồ sơ. Vui lòng vào trang Hồ sơ người dùng để lưu gu phim.');
+        return;
+    }
+    if (elements.filterGenresInput && Array.isArray(profile.genres)) {
+        elements.filterGenresInput.value = profile.genres.join(', ');
+    }
+    if (elements.filterMinYearInput) {
+        elements.filterMinYearInput.value = profile.min_year ? String(profile.min_year) : '';
+    }
+    if (elements.absaRefineToggle && typeof profile.absa_refine === 'boolean') {
+        elements.absaRefineToggle.checked = profile.absa_refine;
+    }
+    const profileQuery = (profile.keywords || '').trim();
+    if (elements.recommendationQuery) {
+        elements.recommendationQuery.value = profileQuery;
+    }
+    if (!profileQuery) {
+        showError('Hồ sơ chưa có từ khóa gu phim. Hãy thêm từ khóa trong Hồ sơ người dùng.');
+        return;
+    }
+    await runRecommendationSearch();
 }
 
 function renderPagination() {
@@ -361,11 +470,11 @@ function removePagination() {
 }
 
 function createReviewCard(review) {
-    const authorName = review.author_name || review.source || 'Unknown reviewer';
+    const authorName = review.author_name || review.source || 'Người đánh giá';
     const avatarLetter = authorName.charAt(0).toUpperCase();
     const date = review.created_at
         ? new Date(review.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-        : 'Unknown date';
+        : 'Không rõ ngày';
 
     const avatar = review.author_avatar_url
         ? `<img src="${review.author_avatar_url}" class="review-avatar-img" alt="${authorName}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="review-avatar" style="display:none;">${avatarLetter}</div>`
@@ -394,7 +503,7 @@ function renderSimilarList(rows) {
     const container = document.getElementById('detailSimilarList');
     if (!container) return;
     if (!rows.length) {
-        container.innerHTML = '<p style="color:#666;">No similar recommendations yet.</p>';
+        container.innerHTML = '<p style="color:#666;">Chưa có phim tương tự.</p>';
         return;
     }
     container.innerHTML = rows.map((item) => `
@@ -415,7 +524,7 @@ function renderAbsaSection(data) {
     const container = document.getElementById('detailAbsaList');
     if (!container) return;
     if (!data || !data.aspects || !data.aspects.length) {
-        container.innerHTML = '<p style="color:#666;">Aspect sentiment not available. Train ABSA model to enable.</p>';
+        container.innerHTML = '<p style="color:#666;">Chưa có dữ liệu ABSA.</p>';
         return;
     }
     container.innerHTML = `
@@ -442,9 +551,9 @@ function renderMoviePage(movie) {
         <div class="movie-detail-layout">
             <div class="detail-poster-column">
                 <div class="detail-poster-card">
-                    ${posterUrl ? `<img src="${posterUrl}" alt="${movie.title}" class="detail-poster-image">` : '<div class="detail-poster-placeholder">No poster</div>'}
+                    ${posterUrl ? `<img src="${posterUrl}" alt="${movie.title}" class="detail-poster-image">` : '<div class="detail-poster-placeholder">Không có poster</div>'}
                 </div>
-                <a href="index.html" class="btn-primary detail-back-link">Back to catalog</a>
+                <a href="index.html" class="btn-primary detail-back-link">Về trang chủ</a>
             </div>
             <div class="detail-content-column">
                 <div class="detail-hero">
@@ -454,34 +563,32 @@ function renderMoviePage(movie) {
                         <span>•</span>
                         <span>${genres}</span>
                         <span>•</span>
-                        <span>${movie.review_count} reviews</span>
+                        <span>${movie.review_count} đánh giá</span>
                         ${movie.average_rating !== null && movie.average_rating !== undefined ? `<span>•</span><span>★ ${movie.average_rating.toFixed(1)}</span>` : ''}
                     </div>
-                    <p class="detail-overview">${movie.overview || 'No overview available for this movie yet.'}</p>
+                    <p class="detail-overview">${movie.overview || 'Phim này hiện chưa có mô tả.'}</p>
                 </div>
                 <section class="similar-section">
-                    <h2 class="detail-section-title">Similar Movies</h2>
+                    <h2 class="detail-section-title">Phim tương tự</h2>
                     <p class="detail-hint">
-                        When you open this page, the app calls <code>/movies/${movie.id}/similar</code>,
-                        which reads precomputed neighbors from TF-IDF / Sentence-BERT artifacts.
+                        Khi mở trang này, hệ thống gọi <code>/movies/${movie.id}/similar</code> để lấy các phim gần nhất từ artifact TF-IDF/Sentence-BERT.
                     </p>
                     <div id="detailSimilarList" class="similar-list">
-                        <p style="color:#666;">Loading recommendations...</p>
+                        <p style="color:#666;">Đang tải gợi ý...</p>
                     </div>
                 </section>
                 <section class="absa-section">
-                    <h2 class="detail-section-title">Aspect-Based Sentiment</h2>
+                    <h2 class="detail-section-title">Cảm xúc theo khía cạnh (ABSA)</h2>
                     <p class="detail-hint">
-                        Sentiment by aspect (script, acting, visuals, etc.) powered by the ABSA model behind
-                        <code>/absa/analyze</code>. Each tile below comes from processing the movie's English reviews.
+                        Cảm xúc theo từng khía cạnh (kịch bản, diễn xuất, hình ảnh, ...), lấy từ endpoint <code>/absa/analyze</code>.
                     </p>
                     <div id="detailAbsaList" class="absa-list">
-                        <p style="color:#666;">Loading...</p>
+                        <p style="color:#666;">Đang tải...</p>
                     </div>
                 </section>
                 <section class="reviews-section">
-                    <h2 class="detail-section-title">Reviews</h2>
-                    ${reviews.length ? `<div class="detail-reviews-list">${reviews.map(createReviewCard).join('')}</div>` : '<div class="loading-container"><p>No reviews available for this movie yet.</p></div>'}
+                    <h2 class="detail-section-title">Đánh giá</h2>
+                    ${reviews.length ? `<div class="detail-reviews-list">${reviews.map(createReviewCard).join('')}</div>` : '<div class="loading-container"><p>Chưa có đánh giá cho phim này.</p></div>'}
                 </section>
             </div>
         </div>
@@ -495,9 +602,9 @@ async function loadMovieDetailPage() {
     if (!movieId) {
         elements.movieDetailContainer.innerHTML = `
             <div class="loading-container">
-                <h2>Movie not found</h2>
-                <p>Missing movie id in URL.</p>
-                <p><a href="index.html" class="btn-primary">Back to catalog</a></p>
+                <h2>Không tìm thấy phim</h2>
+                <p>Thiếu movie id trong URL.</p>
+                <p><a href="index.html" class="btn-primary">Về trang chủ</a></p>
             </div>
         `;
         return;
@@ -522,9 +629,9 @@ async function loadMovieDetailPage() {
         console.error('Load movie detail failed:', error);
         elements.movieDetailContainer.innerHTML = `
             <div class="loading-container">
-                <h2>Could not load movie</h2>
-                <p>${error.message || 'Please try again later.'}</p>
-                <p><a href="index.html" class="btn-primary">Back to catalog</a></p>
+                <h2>Không thể tải phim</h2>
+                <p>${error.message || 'Vui lòng thử lại sau.'}</p>
+                <p><a href="index.html" class="btn-primary">Về trang chủ</a></p>
             </div>
         `;
     }
@@ -538,6 +645,9 @@ function setupCatalogInteractions() {
         elements.recommendationQuery.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') runRecommendationSearch();
         });
+    }
+    if (elements.profileRecommendBtn) {
+        elements.profileRecommendBtn.addEventListener('click', () => runProfileRecommendation());
     }
     if (elements.recommendationResetBtn) {
         elements.recommendationResetBtn.addEventListener('click', () => {
@@ -557,15 +667,20 @@ function setupCatalogInteractions() {
         elements.advancedToggleBtn.addEventListener('click', () => {
             state.advancedOpen = !state.advancedOpen;
             elements.advancedSearchPanel.classList.toggle('hidden', !state.advancedOpen);
-            elements.advancedToggleBtn.textContent = state.advancedOpen ? 'Hide Advanced Search' : 'Advanced Search';
+            elements.advancedToggleBtn.textContent = state.advancedOpen ? 'Ẩn tìm kiếm nâng cao' : 'Tìm kiếm nâng cao';
         });
     }
 }
 
 function init() {
+    if (elements.profileForm) {
+        initProfilePage();
+        return;
+    }
     if (elements.resultsGrid) {
+        applyProfileDefaultsOnCatalog();
         setupCatalogInteractions();
-        loadTrendingRecommendations();
+        loadMovies();
         return;
     }
     loadMovieDetailPage();

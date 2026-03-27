@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CineSense - Khám phá thế giới điện ảnh</title>
-    <meta name="description" content="AI Sematic Search for Movies">
+    <title>CineSense - Khám phá phim</title>
+    <meta name="description" content="Tìm kiếm và gợi ý phim thông minh">
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -15,7 +15,7 @@
         <div class="container header-inner">
             <a href="index.html" class="logo">CineSense</a>
             <nav class="nav-links">
-                <a href="index.html" class="nav-item active">Catalog</a>
+                <a href="profile.html" class="nav-item">Hồ sơ người dùng</a>
             </nav>
         </div>
     </header>
@@ -24,168 +24,94 @@
         style="background-image: url('https://image.tmdb.org/t/p/original/9PqD3wSIjntyJDBzMNuxuKHwpUD.jpg'); background-size: cover; background-position: center;">
         <div class="hero-overlay"></div>
         <div class="hero-content">
-            <h1 class="hero-title">Movie Discovery</h1>
+            <h1 class="hero-title">Khám phá phim</h1>
             <p class="hero-subtitle">
-                Browse the English catalog and try artifact-based recommendations.
-                If recommendation artifacts are unavailable, the app gracefully falls back to catalog mode.
+                Duyệt kho phim và trải nghiệm tìm kiếm/gợi ý thông minh.
             </p>
             <div class="hero-search-inline">
-                <input id="recommendationQuery" type="text" placeholder="Try: dark superhero, romantic tragedy, space survival..." class="search-input-lg">
-                <button id="recommendationSearchBtn" class="btn-primary">Search Recommendations</button>
-                <button id="recommendationResetBtn" class="btn-secondary">Back To Catalog</button>
+                <input id="recommendationQuery" type="text" placeholder="Thử: phim siêu anh hùng, bí ẩn, sinh tồn ngoài không gian..." class="search-input-lg">
+                <button id="recommendationSearchBtn" class="btn-primary">Tìm gợi ý</button>
+                <button id="profileRecommendBtn" class="btn-secondary">Đề xuất theo hồ sơ</button>
+                <button id="recommendationResetBtn" class="btn-secondary">Về danh sách phim</button>
             </div>
             <div class="advanced-toggle-row">
-                <button id="advancedToggleBtn" class="btn-secondary" type="button">Advanced Search</button>
+                <button id="advancedToggleBtn" class="btn-secondary" type="button">Ẩn tìm kiếm nâng cao</button>
             </div>
-            <div id="advancedSearchPanel" class="advanced-panel hidden">
+            <div id="advancedSearchPanel" class="advanced-panel">
                 <div class="advanced-grid">
                     <label class="advanced-field">
-                        <span>Query type</span>
+                        <span>Kiểu truy vấn</span>
                         <select id="queryTypeSelect">
-                            <option value="auto" selected>Auto</option>
-                            <option value="title">Title</option>
-                            <option value="genre">Genre</option>
-                            <option value="context">Context</option>
+                            <option value="auto" selected>Tự động</option>
+                            <option value="title">Tên phim</option>
+                            <option value="genre">Thể loại</option>
+                            <option value="context">Ngữ cảnh</option>
                         </select>
                     </label>
                     <label class="advanced-field">
-                        <span>Genres (comma-separated)</span>
+                        <span>Thể loại (cách nhau bởi dấu phẩy)</span>
                         <input id="filterGenresInput" type="text" placeholder="Action, Horror, Romance">
                     </label>
                     <label class="advanced-field">
-                        <span>Min year</span>
+                        <span>Năm tối thiểu</span>
                         <input id="filterMinYearInput" type="number" min="1900" max="2100" placeholder="2000">
                     </label>
                     <label class="advanced-field">
-                        <span>Max year</span>
+                        <span>Năm tối đa</span>
                         <input id="filterMaxYearInput" type="number" min="1900" max="2100" placeholder="2026">
                     </label>
                     <label class="advanced-field">
-                        <span>Min rating</span>
+                        <span>Điểm tối thiểu</span>
                         <input id="filterMinRatingInput" type="number" min="0" max="10" step="0.1" placeholder="7.0">
                     </label>
                     <label class="advanced-field advanced-checkbox">
                         <input id="absaRefineToggle" type="checkbox" checked>
-                        <span>Enable ABSA refine</span>
+                        <span>Bật ABSA refine</span>
                     </label>
                     <label class="advanced-field advanced-checkbox">
                         <input id="explainToggle" type="checkbox" checked>
-                        <span>Show score breakdown</span>
+                        <span>Hiện chi tiết điểm</span>
                     </label>
                 </div>
             </div>
             <p class="hero-hint-text">
-                Tip: typing here sends your text to <code>/recommendations/search</code> where it is embedded by
-                TF-IDF or Sentence-BERT, then nearest neighbors are retrieved from precomputed similarity artifacts.
+                Mẹo: nhập truy vấn tại đây để gọi <code>/recommendations/search</code>. Hệ thống sẽ kết hợp lexical + semantic + ABSA để xếp hạng.
             </p>
         </div>
     </section>
 
     <main class="container">
         <div class="section-header hidden" id="resultsHeader">
-            <h2 class="section-title">Movie Catalog</h2>
+            <h2 class="section-title">Danh sach phim</h2>
         </div>
 
         <div class="grid-movies" id="resultsGrid">
         </div>
 
         <div class="loading-container" id="loading">
-            <p>Loading movies from PostgreSQL...</p>
+            <p>Dang tai du lieu phim...</p>
         </div>
 
         <div class="loading-container hidden" id="noResults">
-            <h3>No movies found</h3>
-            <p>The catalog is currently empty.</p>
+            <h3>Khong tim thay phim</h3>
+            <p>Kho phim hien khong co du lieu phu hop.</p>
         </div>
 
         <div class="loading-container hidden" id="error">
-            <h3 style="color: #e50914;">Something went wrong</h3>
-            <p id="errorMessage">Please try again later.</p>
+            <h3 style="color: #e50914;">Da xay ra loi</h3>
+            <p id="errorMessage">Vui long thu lai sau.</p>
         </div>
 
         <section class="about-section" id="about">
-            <h2 class="section-title">Under the Hood</h2>
+            <h2 class="section-title">Thông tin hệ thống</h2>
             <p class="about-intro">
-                This demo shows a full NLP pipeline on real movie data: from crawling TMDB reviews, storing them in PostgreSQL,
-                to training text models for recommendation and aspect-based sentiment analysis.
+                Đây là bản demo tìm kiếm và gợi ý phim, kết hợp dữ liệu Postgres và các artifact mô hình NLP.
             </p>
-
-            <div class="about-grid">
-                <article class="about-card">
-                    <h3 class="about-title">1. Data & Preprocessing</h3>
-                    <p class="about-text">
-                        Raw data is crawled from TMDB (popular/top rated movies + reviews), then normalized into core tables:
-                        <code>core_movies</code>, <code>core_reviews</code>, <code>core_genres</code>.
-                        Non-English or very short/noisy reviews are filtered out by a lightweight language heuristic so that
-                        training focuses on English text.
-                    </p>
-                    <p class="about-text">
-                        Each review keeps <code>author_avatar_url</code>, <code>rating</code>, <code>source_url</code>,
-                        <code>source_created_at</code> and cleaned <code>content</code> (trim, deduplicate, safe length)
-                        to preserve full context for NLP models.
-                    </p>
-                    <p class="about-text">
-                        <strong>Feature mapping:</strong> the catalog page, detail page, review list and “Has reviews” badge
-                        all read directly from this processed dataset in PostgreSQL.
-                    </p>
-                </article>
-
-                <article class="about-card">
-                    <h3 class="about-title">2. Recommendation Models</h3>
-                    <p class="about-text">
-                        Offline training builds movie-level text profiles (title + overview + genres + review snippets),
-                        then trains two models:
-                    </p>
-                    <ul class="about-list">
-                        <li><strong>TF-IDF baseline</strong> – sparse vectors + cosine similarity.</li>
-                        <li><strong>Sentence-BERT</strong> – <code>paraphrase-multilingual-MiniLM-L12-v2</code>, 384-dim embeddings.</li>
-                    </ul>
-                    <p class="about-text">
-                        Training scripts live in <code>training/</code> and export artifacts
-                        (<code>movie_index.json</code>, <code>similar_by_movie.json</code>, embeddings) that the API
-                        loads at startup.
-                    </p>
-                    <p class="about-text">
-                        <strong>Feature mapping:</strong> “Top Reviewed Picks”, “Recommendation Search” and
-                        “Similar Movies” on the detail page all call the recommendation API, which reads these artifacts.
-                    </p>
-                </article>
-
-                <article class="about-card">
-                    <h3 class="about-title">3. Aspect-Based Sentiment (ABSA)</h3>
-                    <p class="about-text">
-                        A separate ABSA pipeline is trained in <code>notebooks/kaggle_absa_train.ipynb</code> using
-                        labeled data under <code>training/data/absa/</code>. The deployed model exposes a single endpoint:
-                        <code>POST /absa/analyze</code>.
-                    </p>
-                    <p class="about-text">
-                        <strong>Feature mapping:</strong> the “Aspect-Based Sentiment” box on the movie detail page calls
-                        this endpoint. For each movie it returns pairs like
-                        <code>(aspect = script, sentiment = negative, score = 0.58)</code>.
-                    </p>
-                </article>
-
-                <article class="about-card">
-                    <h3 class="about-title">4. End-to-End Flow</h3>
-                    <p class="about-text">
-                        The full system follows a clean separation:
-                    </p>
-                    <ul class="about-list">
-                        <li><strong>ETL:</strong> crawl TMDB → write to <code>core_*</code> tables.</li>
-                        <li><strong>Training:</strong> build movie profiles → train TF-IDF / Sentence-BERT → export artifacts.</li>
-                        <li><strong>Serving:</strong> FastAPI loads artifacts + Postgres → frontend calls REST endpoints.</li>
-                    </ul>
-                    <p class="about-text">
-                        This page is designed so instructors can see exactly which model is used for each feature and how
-                        the text data flows through the system.
-                    </p>
-                </article>
-            </div>
         </section>
     </main>
 
     <footer style="padding: 40px 0; text-align: center; color: #999; font-size: 0.9rem;">
-        <p>© 2026 CineSense. Discovery-only mode on PostgreSQL data.</p>
+        <p>© 2026 CineSense. Nền tảng tìm kiếm và gợi ý phim.</p>
     </footer>
 
     <script src="app.js"></script>

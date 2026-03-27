@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CineSense - Hồ sơ người dùng</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <header class="header">
+        <div class="container header-inner">
+            <a href="index.html" class="logo">CineSense</a>
+            <nav class="nav-links">
+                <a href="index.html" class="nav-item">Trang chủ</a>
+                <a href="profile.html" class="nav-item active">Hồ sơ người dùng</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container profile-page">
+        <section class="profile-card">
+            <h1 class="section-title">Gu phim của bạn</h1>
+            <p class="profile-subtitle">Thiết lập này sẽ được áp vào Tìm kiếm nâng cao ở trang chủ.</p>
+
+            <form id="profileForm" class="profile-form">
+                <div class="profile-field">
+                    <label class="profile-label">Thể loại yêu thích</label>
+                    <div class="profile-checkbox-grid">
+                        <label><input type="checkbox" name="prefGenres" value="Action"> Action</label>
+                        <label><input type="checkbox" name="prefGenres" value="Adventure"> Adventure</label>
+                        <label><input type="checkbox" name="prefGenres" value="Comedy"> Comedy</label>
+                        <label><input type="checkbox" name="prefGenres" value="Drama"> Drama</label>
+                        <label><input type="checkbox" name="prefGenres" value="Fantasy"> Fantasy</label>
+                        <label><input type="checkbox" name="prefGenres" value="Horror"> Horror</label>
+                        <label><input type="checkbox" name="prefGenres" value="Mystery"> Mystery</label>
+                        <label><input type="checkbox" name="prefGenres" value="Romance"> Romance</label>
+                        <label><input type="checkbox" name="prefGenres" value="Science Fiction"> Science Fiction</label>
+                        <label><input type="checkbox" name="prefGenres" value="Thriller"> Thriller</label>
+                    </div>
+                </div>
+
+                <div class="profile-field">
+                    <label for="prefKeywords" class="profile-label">Từ khóa gu phim (gợi ý tìm kiếm)</label>
+                    <input id="prefKeywords" type="text" placeholder="mind-bending, slow burn, happy ending...">
+                </div>
+
+                <div class="profile-field-row">
+                    <div class="profile-field">
+                        <label for="prefMinYear" class="profile-label">Ưu tiên phim từ năm</label>
+                        <input id="prefMinYear" type="number" min="1900" max="2100" placeholder="2015">
+                    </div>
+                    <div class="profile-field profile-inline">
+                        <label><input id="prefAbsaRefine" type="checkbox" checked> Mặc định bật ABSA refine</label>
+                    </div>
+                </div>
+
+                <div class="profile-actions">
+                    <button type="submit" class="btn-primary">Lưu hồ sơ</button>
+                    <button type="button" id="clearProfileBtn" class="btn-secondary">Dọn hồ sơ</button>
+                </div>
+                <p id="profileStatus" class="profile-status"></p>
+            </form>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
