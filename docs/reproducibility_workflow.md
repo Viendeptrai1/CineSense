@@ -1,22 +1,14 @@
 # Reproducibility Workflow
 
-This document defines a repeatable local workflow from infrastructure to report evidence.
+This document defines a repeatable local workflow from data to report evidence.
 
-## 1) Start infrastructure
-
-```bash
-docker-compose up -d
-```
-
-## 2) Ingest or restore data
-
-Option A (restore snapshots):
+## 1) Create SQLite database from CSV + artifacts
 
 ```bash
-python scripts/restore_data.py
+python scripts/seed_sqlite_from_csv.py
 ```
 
-Option B (ETL from TMDB):
+## 2) Optional: ETL from TMDB (requires `TMDB_API_KEY` in `.env`)
 
 ```bash
 python -m etl_pipeline.main --pages 10

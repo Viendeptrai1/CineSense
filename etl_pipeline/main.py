@@ -7,7 +7,7 @@ Entry point for the ETL (Extract, Transform, Load) pipeline.
 Pipeline Flow:
 1. EXTRACT: Fetch movies/reviews from TMDB API (or mock data for testing)
 2. TRANSFORM: Normalize English metadata and review corpus
-3. LOAD: Upsert to PostgreSQL core tables
+3. LOAD: Upsert to SQL core tables (`DATABASE_URL`, SQLite mặc định)
 
 Usage:
     # Run with mock data (for testing)
@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from loguru import logger
 
 from .config import settings
-from .db_postgres import (
+from .database import (
     init_database,
     get_session,
     get_engine,
@@ -76,7 +76,7 @@ def _infer_review_language(content: str) -> str:
 
 def load_genres_from_tmdb(session, client: TMDBClient) -> Dict[int, CoreGenre]:
     """
-    Fetch and load genres from TMDB to PostgreSQL.
+    Fetch and load genres from TMDB into the configured SQL database.
     
     Returns:
         Dict mapping TMDB genre ID to CoreGenre ORM object
@@ -95,7 +95,7 @@ def load_genres_from_tmdb(session, client: TMDBClient) -> Dict[int, CoreGenre]:
             session.flush()
             genre_map[tmdb_genre.id] = genre
     
-    logger.info(f"Loaded {len(genre_map)} genres to PostgreSQL")
+    logger.info(f"Loaded {len(genre_map)} genres into core_genres")
     return genre_map
 
 
@@ -106,7 +106,7 @@ def process_tmdb_movie(
     genre_map: Dict[int, CoreGenre],
 ) -> Optional[Dict[str, Any]]:
     """
-    Process a single movie and its reviews into PostgreSQL.
+    Process a single movie and its reviews into core_* tables.
     
     Returns:
         Dict with inserted movie/review counts for reporting
@@ -210,7 +210,7 @@ def run_tmdb_etl_pipeline(
     """
     logger.info("🚀 Starting CineSense ETL Pipeline (TMDB Mode)")
     logger.info(f"   Pages to fetch: {pages} (~{pages * 20} movies)")
-    logger.info("   Mode: PostgreSQL core schema only")
+    logger.info("   Mode: SQL core schema only")
     
     # Initialize databases
     if reset_db:
@@ -275,7 +275,7 @@ def run_tmdb_etl_pipeline(
     logger.info("📊 Final Statistics:")
     logger.info(f"   Total Movies: {total_movies}")
     logger.info(f"   Total Reviews: {total_reviews}")
-    logger.success("✅ PostgreSQL core ETL completed successfully!")
+    logger.success("✅ Core ETL completed successfully!")
 
 
 # ============================================
@@ -342,7 +342,7 @@ def generate_mock_data() -> List[MockMovie]:
 def run_mock_etl_pipeline() -> None:
     """Execute ETL pipeline with mock data for testing."""
     logger.info("🚀 Starting CineSense ETL Pipeline (Mock Mode)")
-    logger.info("   Mode: PostgreSQL core schema only")
+    logger.info("   Mode: SQL core schema only")
     
     # Initialize databases
     logger.info("📦 Initializing databases...")

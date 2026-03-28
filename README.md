@@ -13,7 +13,7 @@ Người chấm có thể:
 
 - **Data & ETL**
   - Cào dữ liệu từ TMDB API (metadata + poster + full reviews).
-  - Chuẩn hóa vào PostgreSQL core schema: `core_movies`, `core_reviews`, `core_genres`, `core_movie_genres`.
+  - Chuẩn hóa vào SQL core schema (mặc định SQLite): `core_movies`, `core_reviews`, `core_genres`, `core_movie_genres`.
   - Lọc/nghiền dữ liệu:
     - Heuristic ngôn ngữ để ưu tiên review tiếng Anh.
     - Làm sạch nội dung (trim, giới hạn độ dài, loại review rác).
@@ -27,7 +27,7 @@ Người chấm có thể:
   - Thư mục `training/` chỉ giữ utility/script legacy để tham khảo hoặc thử nghiệm cục bộ, **không phải luồng train chính thức cho demo/chấm điểm**.
 
 - **Runtime API (`api/`)**
-  - **Discovery**: `GET /movies`, `GET /movies/{id}` đọc trực tiếp từ PostgreSQL core schema.
+  - **Discovery**: `GET /movies`, `GET /movies/{id}` đọc trực tiếp từ database (SQLite mặc định).
   - **Recommendation (artifact-based)**:
     - `GET /movies/{id}/similar` → đọc neighbors đã precompute từ artifacts.
     - `GET /recommendations/trending`, `POST /recommendations/search`.
@@ -51,12 +51,12 @@ Người chấm có thể:
 - **Language**: Python 3.10+
 - **Backend**: FastAPI
 - **Frontend**: HTML/CSS/Vanilla JS
-- **Database**: PostgreSQL (core schema cho ML)
+- **Database**: SQLite (`./data/cinesense.db`, `DATABASE_URL`)
 - **ML / NLP**:
   - `scikit-learn` (TF‑IDF baseline).
-  - `sentence-transformers` (Sentence-BERT, mặc định `all-mpnet-base-v2`).
+  - `sentence-transformers` (embedding theo `EMBEDDING_MODEL` trong `.env`, mặc định `all-mpnet-base-v2`).
   - Custom ABSA model train từ notebook Kaggle.
-- **Infra**: Docker & Docker Compose (seed toàn bộ database qua `infra/seed/postgres/01-seed-data.sql.gz`).
+- **Dữ liệu**: `scripts/seed_sqlite_from_csv.py` → SQLite `data/cinesense.db`.
 
 ---
 
@@ -68,9 +68,8 @@ CineSen/
 ├── etl_pipeline/        # Crawler TMDB + core schema + config
 ├── frontend/            # Web UI (catalog + detail + Under the Hood section)
 ├── training/            # Legacy utilities (không phải luồng train chính thức)
-├── infra/               # Docker & database seeds
-│   └── seed/postgres/   # 01-seed-data.sql.gz (4 900 movies, 9 373 reviews)
-├── scripts/             # Tiện ích (test_api, run_backend, run_frontend, ...)
+├── infra/seed/          # Ghi chú seed (xem README trong thư mục)
+├── scripts/             # Tiện ích (`seed_sqlite_from_csv.py`, test_api, run_backend, ...)
 └── Report_For_This_Project/  # Báo cáo LaTeX cho đồ án
 ```
 
@@ -84,10 +83,8 @@ git clone <repo-url> && cd CineSen
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 2. Khởi động database (PostgreSQL tự seed 4 900 phim + 9 373 reviews)
-docker-compose up -d
-# Lần đầu Postgres detect volume trống → tự nạp infra/seed/postgres/01-seed-data.sql.gz
-# Chờ ~30s để seed xong, kiểm tra: docker logs cinesense-postgres --tail 5
+# 2. Tạo database SQLite + nạp dữ liệu từ CSV (khớp UUID với artifact gợi ý)
+python scripts/seed_sqlite_from_csv.py
 
 # 3. Khởi động Backend (terminal 1)
 ./scripts/run_backend.sh
@@ -100,13 +97,13 @@ docker-compose up -d
 
 **Test API (sau khi backend đang chạy):** `python scripts/test_api.py --base-url http://localhost:8000`
 
-> Không cần file `.env` để chạy app -- mọi config đã có default. Chỉ cần tạo `.env` khi muốn cào thêm data mới (cần `TMDB_API_KEY`).
+> Mặc định `DATABASE_URL=sqlite:///./data/cinesense.db`. Copy `.env.example` → `.env` nếu cần chỉnh TMDB/artifact.
 
 Truy cập: [http://localhost:3000](http://localhost:3000)
 
 > **Lưu ý:**
-> - Lần đầu `docker-compose up -d` sẽ tự tạo database và nạp toàn bộ dữ liệu đã cào (4 900 phim, 9 373 reviews, 19 genres). Không cần chạy thêm script gì.
-> - Nếu muốn reset database: `docker-compose down -v` rồi `docker-compose up -d`.
+> - Chạy `python scripts/seed_sqlite_from_csv.py` sau khi có `Notebook_Report/cinesense_*.csv` và `movie_index.json` trong artifact (để UUID khớp gợi ý).
+> - Reset dữ liệu: xóa `data/cinesense.db` rồi chạy lại script seed.
 > - Recommendation runtime ưu tiên artifacts từ `Notebook_Report/training/artifacts/`.
 > - Nếu chưa có artifact phù hợp, runtime fallback theo thứ tự nguồn khả dụng và frontend vẫn có thể quay về catalog chuẩn.
 
@@ -133,7 +130,6 @@ Checklist export artifact cho runtime nằm tại: `Notebook_Report/README.md`.
 python scripts/test_api.py --base-url http://localhost:8000
 ```
 
-- **Semantic search:** query tiếng Anh qua endpoint search (khi Qdrant đã cấu hình).
 - **ABSA:** `POST /absa/analyze` với body `{"text": "..."}` hoặc `{"movie_id": "..."}` trả về bảng aspect–sentiment.
 
 ---

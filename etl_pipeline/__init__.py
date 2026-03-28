@@ -7,8 +7,7 @@ movie review data for semantic search capabilities.
 
 Components:
 - config: Configuration management (Pydantic Settings)
-- db_postgres: SQLAlchemy models and PostgreSQL connection
-- db_qdrant: Qdrant vector database operations
+- database: SQLAlchemy models and SQLite connection
 - embedder: Sentence Transformer embedding logic
 - main: ETL orchestration script
 """

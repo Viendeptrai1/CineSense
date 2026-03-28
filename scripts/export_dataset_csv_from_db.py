@@ -24,7 +24,7 @@ from uuid import UUID
 # Allow running from anywhere: ensure repo root is in PYTHONPATH
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from etl_pipeline.db_postgres import CoreMovie, CoreReview, get_session
+from etl_pipeline.database import CoreMovie, CoreReview, get_session
 
 
 def _iso_or_empty(value: Any) -> str:

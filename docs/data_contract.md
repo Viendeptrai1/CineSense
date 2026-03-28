@@ -10,7 +10,7 @@ This document defines the stable AI-facing contract for model training and runti
 - `core_movie_genres`
 
 Defined in:
-- `etl_pipeline/db_postgres.py`
+- `etl_pipeline/database.py`
 
 ## Required Fields
 
@@ -57,8 +57,6 @@ This spec must remain consistent across:
 - `.env`
 - `etl_pipeline/config.py`
 - `etl_pipeline/embedder.py`
-- `etl_pipeline/db_qdrant.py`
-- `docker-compose.yml` comments/docs
 
 ## Reproducible Audit
 

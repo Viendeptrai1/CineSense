@@ -15,7 +15,7 @@ from transformers import AutoTokenizer
 
 from api.dependencies import get_db
 from api.schemas import AbsaAnalyzeRequest, AbsaAnalyzeResponse, AbsaAspectItem
-from etl_pipeline.db_postgres import CoreMovie
+from etl_pipeline.database import CoreMovie
 from etl_pipeline.embedder import preprocess_text
 
 router = APIRouter(prefix="/absa", tags=["ABSA"])

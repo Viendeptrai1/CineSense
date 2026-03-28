@@ -5,7 +5,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import text
-from etl_pipeline.db_postgres import get_engine, init_database
+from etl_pipeline.database import get_engine, init_database
 
 def migrate():
     engine = get_engine()

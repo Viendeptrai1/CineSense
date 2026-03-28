@@ -2,13 +2,9 @@
 # ============================================
 # Updated for Python 3.13 compatibility
 
-# Database - PostgreSQL (psycopg3 for Python 3.13 compatibility)
-psycopg[binary]==3.2.4
+# Database — SQLAlchemy (SQLite built-in)
 SQLAlchemy>=2.0.25
 alembic>=1.13.1
-
-# Vector Database - Qdrant
-qdrant-client>=1.7.1
 
 # NLP & Embeddings
 sentence-transformers>=2.2.2

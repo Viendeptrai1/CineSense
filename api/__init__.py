@@ -2,7 +2,7 @@
 CineSense API Module
 =====================
 
-FastAPI-based semantic search service for movie recommendations.
+FastAPI: movie discovery, artifact-based recommendations, and ABSA.
 """
 
 __version__ = "0.1.0"

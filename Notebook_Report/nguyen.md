@@ -6,10 +6,10 @@ Tài liệu này là bản Tóm tắt Kế hoạch Thực thi (Blueprint). Rất
 
 Hệ thống hiện tại chỉ lưu review kéo từ website khác (TMDB). Để làm "Cá nhân hóa", chúng ta bắt buộc phải có Dữ liệu của người dùng nội bộ.
 
-### Cần thêm 2 bảng mới trong PostgreSQL:
+### Cần thêm 2 bảng mới trong SQL (SQLite / schema ORM `etl_pipeline/database.py`):
 1. Bảng `user_reviews`:
    - [id](file:///d:/CODE/Natural%20Language%20Processing/CineSense-main/training/baselines/train_tfidf.py#36-108) (UUID), `user_id` (UUID), `movie_id` (UUID)
-   - [content](file:///d:/CODE/Natural%20Language%20Processing/CineSense-main/etl_pipeline/db_postgres.py#289-295) (Text): Nội dung review do chính User này gõ vào web của bạn.
+   - `content` (Text): Nội dung review do chính User này gõ vào web của bạn (tham chiếu model `Review` trong `database.py`).
    - `created_at` (Timestamp).
 2. Bảng `absa_user_profiles` (Lưu Gu của User):
    - `user_id` (UUID - Khóa chính)

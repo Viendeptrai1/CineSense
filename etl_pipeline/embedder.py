@@ -4,11 +4,8 @@ CineSense Text Embedding Module
 
 Handles text preprocessing and embedding generation using Sentence Transformers.
 
-Model: paraphrase-multilingual-MiniLM-L12-v2
-- Output: 384-dimensional dense vectors
-- Languages: 50+ languages including Vietnamese & English
-- Performance: Fast inference, excellent multilingual semantic similarity
-- Use case: "phim kinh dị" ≈ "horror movie" cross-lingual search
+Model: from `settings.embedding.model` (default `sentence-transformers/all-mpnet-base-v2`, 768-dim).
+Override via env `EMBEDDING_MODEL` / `EMBEDDING_DIMENSION` in `.env`.
 
 Text Preprocessing Pipeline (English-first, multilingual safe):
 1. Unicode normalization
@@ -318,7 +315,7 @@ def embed_text(text: str, preprocess: bool = True) -> List[float]:
         preprocess: Whether to apply preprocessing
         
     Returns:
-        384-dimensional embedding vector as list of floats
+        Embedding vector as list of floats (length = model output dim).
     """
     model = get_embedding_model()
     
@@ -326,7 +323,6 @@ def embed_text(text: str, preprocess: bool = True) -> List[float]:
         text = preprocess_text(text)
     
     # Generate embedding
-    # Returns numpy array of shape (384,)
     embedding = model.encode(text, convert_to_numpy=True)
     
     # Convert to list for JSON serialization
@@ -351,13 +347,7 @@ def embed_texts(
         show_progress: Whether to show progress bar
         
     Returns:
-        List of 384-dimensional embedding vectors
-        
-    Example:
-        >>> reviews = ["Great film!", "Terrible acting."]
-        >>> vectors = embed_texts(reviews)
-        >>> len(vectors[0])
-        384
+        List of embedding vectors (same dimension as `get_embedding_dimension()`).
     """
     if not texts:
         return []
@@ -385,7 +375,7 @@ def get_embedding_dimension() -> int:
     Get the dimension of embedding vectors.
     
     Returns:
-        int: Embedding dimension (384 for paraphrase-multilingual-MiniLM-L12-v2)
+        int: Embedding dimension for the loaded SentenceTransformer.
     """
     model = get_embedding_model()
     return model.get_sentence_embedding_dimension()

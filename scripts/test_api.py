@@ -28,7 +28,13 @@ def main() -> int:
         r = httpx.get(f"{base}/health", timeout=10)
         r.raise_for_status()
         data = r.json()
-        print(f"   status={data.get('status')}, movies_count={data.get('movies_count')}")
+        db_ok = data.get("database_connected")
+        print(
+            f"   status={data.get('status')}, database_connected={db_ok}, movies_count={data.get('movies_count')}"
+        )
+        if db_ok is False:
+            print("   FAIL: database not connected")
+            ok = False
     except Exception as e:
         print(f"   FAIL: {e}")
         ok = False
@@ -89,6 +95,25 @@ def main() -> int:
             print(f"   FAIL: {e}")
     else:
         print("4. Skip similar (no movie id)")
+
+    # 5. Recommendation search
+    print("5. POST /recommendations/search")
+    try:
+        r = httpx.post(
+            f"{base}/recommendations/search",
+            json={"query": "space adventure science fiction", "limit": 3, "absa_refine": False},
+            timeout=30,
+        )
+        if r.status_code == 503:
+            print("   (recommendation artifact not loaded)")
+        else:
+            r.raise_for_status()
+            data = r.json()
+            n = len(data.get("results") or [])
+            print(f"   results={n}, model={data.get('model')}")
+    except Exception as e:
+        print(f"   FAIL: {e}")
+        ok = False
 
     return 0 if ok else 1
 

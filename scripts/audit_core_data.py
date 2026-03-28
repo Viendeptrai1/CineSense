@@ -21,7 +21,7 @@ from sqlalchemy import func
 # Allow running from repository root or scripts/ directory.
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from etl_pipeline.db_postgres import CoreMovie, CoreReview, CoreGenre, get_session
+from etl_pipeline.database import CoreMovie, CoreReview, CoreGenre, get_session
 
 
 @dataclass

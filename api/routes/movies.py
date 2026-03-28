@@ -19,7 +19,7 @@ from api.schemas import (
     ReviewSchema,
     GenreSchema,
 )
-from etl_pipeline.db_postgres import CoreMovie, CoreReview, CoreGenre
+from etl_pipeline.database import CoreMovie, CoreReview, CoreGenre
 
 
 router = APIRouter(prefix="/movies", tags=["Movies"])

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Chạy CineSense API (backend).
-# Yêu cầu: PostgreSQL đang chạy (docker-compose up -d), đã activate venv.
+# Yêu cầu: venv + database (mặc định SQLite ./data/cinesense.db sau khi chạy scripts/seed_sqlite_from_csv.py).
 
 set -e
 cd "$(dirname "$0")/.."

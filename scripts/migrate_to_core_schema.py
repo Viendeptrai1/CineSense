@@ -16,7 +16,7 @@ from sqlalchemy.orm import selectinload
 # Allow running the script from the repository root or scripts/ directory.
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from etl_pipeline.db_postgres import (
+from etl_pipeline.database import (
     init_database,
     get_session,
     Movie,

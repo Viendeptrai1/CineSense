@@ -19,7 +19,7 @@ from sqlalchemy import text
 from api import __version__
 from api.schemas import HealthResponse
 from api.routes import movies, recommendations, absa as absa_routes
-from etl_pipeline.db_postgres import get_session, CoreMovie
+from etl_pipeline.database import get_session, CoreMovie
 
 
 # ============================================
@@ -39,17 +39,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     """
     logger.info("🚀 Starting CineSense API...")
     
-    # Verify PostgreSQL connection
     try:
         session = get_session()
         session.execute(text("SELECT 1"))
         session.close()
-        logger.info("✅ PostgreSQL connection verified")
+        logger.info("✅ Database connection verified")
     except Exception as e:
-        logger.error(f"❌ PostgreSQL connection failed: {e}")
-    
-    # NOTE: Qdrant/Embedding disabled — will be re-enabled after custom model training
-    logger.warning("⚠️ Semantic search disabled (Qdrant not configured)")
+        logger.error(f"❌ Database connection failed: {e}")
     
     logger.info("🎬 CineSense API ready!")
     
@@ -66,11 +62,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
 app = FastAPI(
     title="CineSense API",
     description="""
-    Discovery-first API for browsing the English movie catalog stored in PostgreSQL.
+    Discovery-first API for browsing the English movie catalog (SQLite by default).
 
     Current scope:
     - paginated movie discovery
-    - PostgreSQL as the source of truth
+    - SQL database as the source of truth
     - recommendation routes powered by offline training artifacts
     """,
     version=__version__,
@@ -111,26 +107,22 @@ async def health_check() -> HealthResponse:
     
     Returns system status including database connections and statistics.
     """
-    postgres_ok = False
+    db_ok = False
     movies_count = 0
     
-    # Check PostgreSQL
     try:
         session = get_session()
         movies_count = session.query(CoreMovie).count()
         session.close()
-        postgres_ok = True
+        db_ok = True
     except Exception as e:
-        logger.error(f"Health check - PostgreSQL error: {e}")
+        logger.error(f"Health check - database error: {e}")
     
     return HealthResponse(
-        status="healthy" if postgres_ok else "degraded",
+        status="healthy" if db_ok else "degraded",
         version=__version__,
-        postgres_connected=postgres_ok,
-        qdrant_connected=False,  # Disabled until custom model is trained
-        embedding_model="disabled",
+        database_connected=db_ok,
         movies_count=movies_count,
-        vectors_count=0,
     )
 
 

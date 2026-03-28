@@ -58,9 +58,6 @@ Notebook_Report/**/*.csv
 Notebook_Report/**/*.json
 Notebook_Report/**/*.jsonl
 
-# Docker
-docker-compose.override.yml
-
 # OS
 .DS_Store
 Thumbs.db

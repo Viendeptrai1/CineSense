@@ -1,23 +1,13 @@
 """
-CineSense PostgreSQL Database Module
-=====================================
+CineSense database module (SQLAlchemy ORM).
 
-SQLAlchemy ORM models and database connection management.
-
-Schema Design:
-- movies: Core movie metadata (UUID primary key, TMDB integration ready)
-- reviews: User/critic reviews linked to movies (1:N relationship)
-- genres: Movie genre taxonomy
-- movie_genres: Many-to-many junction table
-
-Design Decisions:
-- UUID primary keys for distributed system compatibility
-- Soft delete patterns ready (can add is_deleted flag later)
-- Timestamps for audit trail
+SQLite application database via `DATABASE_URL` in settings (file path, default `./data/cinesense.db`).
+Uses dialect-neutral UUID and JSON types.
 """
 
 import uuid
 from datetime import datetime, date
+from pathlib import Path
 from typing import List, Optional
 
 from sqlalchemy import (
@@ -32,8 +22,13 @@ from sqlalchemy import (
     Table,
     create_engine,
     UniqueConstraint,
+    Uuid,
+    JSON,
+    event,
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.engine import Engine, make_url
+
+_SQLITE_SCHEME = "sqlite:"
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -45,6 +40,14 @@ from sqlalchemy.orm import (
 from sqlalchemy.sql import func
 
 from .config import settings
+
+
+@event.listens_for(Engine, "connect")
+def _sqlite_enable_foreign_keys(dbapi_connection, _connection_record) -> None:
+    if dbapi_connection.__class__.__module__.startswith("sqlite3"):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
 # ============================================
@@ -64,7 +67,7 @@ class Base(DeclarativeBase):
 movie_genres = Table(
     "movie_genres",
     Base.metadata,
-    Column("movie_id", UUID(as_uuid=True), ForeignKey("movies.id"), primary_key=True),
+    Column("movie_id", Uuid(as_uuid=True), ForeignKey("movies.id"), primary_key=True),
     Column("genre_id", Integer, ForeignKey("genres.id"), primary_key=True),
 )
 
@@ -72,7 +75,7 @@ movie_genres = Table(
 core_movie_genres = Table(
     "core_movie_genres",
     Base.metadata,
-    Column("movie_id", UUID(as_uuid=True), ForeignKey("core_movies.id"), primary_key=True),
+    Column("movie_id", Uuid(as_uuid=True), ForeignKey("core_movies.id"), primary_key=True),
     Column("genre_id", Integer, ForeignKey("core_genres.id"), primary_key=True),
 )
 
@@ -99,7 +102,7 @@ class Movie(Base):
     __tablename__ = "movies"
     
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
         comment="Internal unique identifier"
@@ -199,9 +202,7 @@ class Review(Base):
     Movie review entity.
     
     Design Note:
-    - Each review is stored as a separate vector in Qdrant
-    - This allows granular semantic search at the review level
-    - movie_id links back to the movie for payload enrichment
+    - movie_id links back to the parent movie
     
     Attributes:
         id: Internal UUID primary key
@@ -215,13 +216,13 @@ class Review(Base):
     __tablename__ = "reviews"
     
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
         comment="Internal unique identifier"
     )
     movie_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("movies.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -253,7 +254,7 @@ class Review(Base):
         comment="Record creation timestamp"
     )
     user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
@@ -304,7 +305,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
         comment="User unique identifier"
@@ -337,7 +338,7 @@ class User(Base):
         nullable=True
     )
     preferences: Mapped[Optional[dict]] = mapped_column(
-        JSONB,
+        JSON,
         nullable=True,
         default={},
         comment="User preferences for cold start (genres, fav movies)"
@@ -361,10 +362,10 @@ class ReviewLike(Base):
     __tablename__ = "review_likes"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     review_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("reviews.id", ondelete="CASCADE"), primary_key=True
+        Uuid(as_uuid=True), ForeignKey("reviews.id", ondelete="CASCADE"), primary_key=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -380,13 +381,13 @@ class Watchlist(Base):
     __tablename__ = "watchlist"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     movie_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("movies.id", ondelete="CASCADE")
+        Uuid(as_uuid=True), ForeignKey("movies.id", ondelete="CASCADE")
     )
     status: Mapped[str] = mapped_column(
         String(20), default="plan_to_watch", comment="plan_to_watch, completed, dropped"
@@ -445,7 +446,7 @@ class CoreMovie(Base):
     __tablename__ = "core_movies"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
         comment="Stable movie UUID copied from legacy movies table",
@@ -569,13 +570,13 @@ class CoreReview(Base):
     __tablename__ = "core_reviews"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
         comment="Stable review UUID copied from legacy reviews table when available",
     )
     movie_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("core_movies.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -652,17 +653,24 @@ class CoreReview(Base):
 
 def get_engine():
     """
-    Create SQLAlchemy engine with connection pooling.
-    
+    Create SQLAlchemy engine for the SQLite file database.
+
     Returns:
         Engine: SQLAlchemy engine instance
     """
+    url = settings.database_url
+    if not url.strip().lower().startswith(_SQLITE_SCHEME):
+        raise ValueError(
+            "Only SQLite is supported: set DATABASE_URL to e.g. sqlite:///./data/cinesense.db"
+        )
+    parsed = make_url(url)
+    if parsed.database and parsed.database != ":memory:":
+        Path(parsed.database).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
     return create_engine(
-        settings.postgres.database_url,
-        echo=False,  # Set to True for SQL debugging
-        pool_size=5,
-        max_overflow=10,
-        pool_pre_ping=True,  # Verify connections before use
+        url,
+        echo=False,
+        connect_args={"check_same_thread": False},
+        pool_pre_ping=True,
     )
 
 
@@ -686,7 +694,7 @@ def init_database() -> None:
     """
     engine = get_engine()
     Base.metadata.create_all(engine)
-    print("✅ PostgreSQL database schema initialized successfully.")
+    print("✅ Database schema initialized successfully.")
 
 
 def get_session() -> Session:
