@@ -96,12 +96,17 @@ def main() -> int:
     else:
         print("4. Skip similar (no movie id)")
 
-    # 5. Recommendation search
-    print("5. POST /recommendations/search")
+    # 5. Recommendation search (artifact engine)
+    print("5. POST /recommendations/search (engine=artifact)")
     try:
         r = httpx.post(
             f"{base}/recommendations/search",
-            json={"query": "space adventure science fiction", "limit": 3, "absa_refine": False},
+            json={
+                "query": "space adventure science fiction",
+                "limit": 3,
+                "engine": "artifact",
+                "absa_refine": False,
+            },
             timeout=30,
         )
         if r.status_code == 503:
@@ -110,7 +115,71 @@ def main() -> int:
             r.raise_for_status()
             data = r.json()
             n = len(data.get("results") or [])
-            print(f"   results={n}, model={data.get('model')}")
+            extra = ""
+            if data.get("engines_used") is not None:
+                extra += f", engines_used={data.get('engines_used')}"
+            if data.get("query_effective"):
+                extra += f", query_effective={data.get('query_effective')!r}"
+            print(f"   results={n}, model={data.get('model')}{extra}")
+    except Exception as e:
+        print(f"   FAIL: {e}")
+        ok = False
+
+    # 6. Recommendation search (hybrid engine; may download SBERT on first run)
+    print("6. POST /recommendations/search (engine=hybrid)")
+    try:
+        r = httpx.post(
+            f"{base}/recommendations/search",
+            json={
+                "query": "space adventure science fiction",
+                "limit": 3,
+                "engine": "hybrid",
+                "absa_refine": False,
+                "explain": False,
+            },
+            timeout=120,
+        )
+        if r.status_code == 503:
+            print(f"   (hybrid unavailable: {r.text[:200]})")
+        else:
+            r.raise_for_status()
+            data = r.json()
+            n = len(data.get("results") or [])
+            extra = ""
+            if data.get("engines_used") is not None:
+                extra += f", engines_used={data.get('engines_used')}"
+            print(f"   results={n}, model={data.get('model')}{extra}")
+    except Exception as e:
+        print(f"   FAIL: {e}")
+        ok = False
+
+    # 7. Multi-engine (cần API mới có field engines + engines_used trong response)
+    print("7. POST /recommendations/search (engines=[artifact, hybrid])")
+    try:
+        r = httpx.post(
+            f"{base}/recommendations/search",
+            json={
+                "query": "space adventure",
+                "limit": 2,
+                "engines": ["artifact", "hybrid"],
+                "absa_refine": False,
+                "explain": False,
+            },
+            timeout=120,
+        )
+        if r.status_code == 503:
+            print("   (artifact or hybrid not ready)")
+        elif r.status_code == 500:
+            print("   FAIL: 500 — thường do API chưa restart sau khi đổi schema response")
+            ok = False
+        else:
+            r.raise_for_status()
+            data = r.json()
+            be = data.get("by_engine")
+            eu = data.get("engines_used")
+            print(f"   by_engine={'yes' if be else 'no'}, engines_used={eu}, model={data.get('model')}")
+            if eu and len(eu) > 1 and not be:
+                print("   WARN: nhiều engine nhưng by_engine null — kiểm tra version API")
     except Exception as e:
         print(f"   FAIL: {e}")
         ok = False

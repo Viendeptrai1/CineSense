@@ -30,7 +30,42 @@
                 <a href="profile.html" class="btn-secondary">Chỉnh gu</a>
                 <button id="refreshRecommendationsBtn" class="btn-primary" type="button">Làm mới gợi ý</button>
             </div>
-            <div style="margin-top:12px; display:flex; gap:14px; flex-wrap:wrap;">
+            <div style="margin-top:12px; display:flex; gap:14px; flex-wrap:wrap; align-items:center;">
+                <div class="advanced-field" style="flex-direction:row; gap:12px; align-items:center; flex-wrap:wrap;">
+                    <span style="color:#6b7280; font-size:0.9rem;">Engine</span>
+                    <label style="display:flex; align-items:center; gap:6px; font-size:0.95rem; cursor:pointer;">
+                        <input type="checkbox" id="engineArtifact" checked>
+                        Artifact
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; font-size:0.95rem; cursor:pointer;">
+                        <input type="checkbox" id="engineHybrid">
+                        Hybrid (CSV)
+                    </label>
+                    <label style="display:flex; align-items:center; gap:8px; font-size:0.95rem;">
+                        <span style="color:#6b7280;">Artifact semantic</span>
+                        <select id="semanticBackend" style="padding:6px 10px; border-radius:8px; border:1px solid #e5e7eb;">
+                            <option value="auto" selected>Auto</option>
+                            <option value="tfidf">TF‑IDF</option>
+                            <option value="sbert">SBERT</option>
+                        </select>
+                    </label>
+                    <span style="color:#6b7280; font-size:0.85rem; width:100%;">Baseline (notebook 03)</span>
+                    <label style="display:flex; align-items:center; gap:6px; font-size:0.95rem; cursor:pointer;">
+                        <input type="checkbox" id="engineBaselineSbert">
+                        Baseline SBERT
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; font-size:0.95rem; cursor:pointer;">
+                        <input type="checkbox" id="engineBaselineTfidf">
+                        Baseline TF‑IDF
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; font-size:0.95rem; cursor:pointer;">
+                        <input type="checkbox" id="engineBaselineW2v">
+                        Baseline Word2Vec
+                    </label>
+                </div>
+                <p style="margin:8px 0 0; font-size:0.85rem; color:#6b7280; max-width:40rem;">
+                    SBERT cho Artifact cần <code>embeddings.npy</code> trong artifact; chưa có → 400 nếu chọn SBERT. Dùng Auto hoặc bật Hybrid (SBERT tại chỗ).
+                </p>
                 <label class="advanced-field advanced-checkbox" style="flex-direction:row; gap:10px;">
                     <input id="debugToggle" type="checkbox">
                     <span>Hiện debug</span>
@@ -38,6 +73,10 @@
                 <label class="advanced-field advanced-checkbox" style="flex-direction:row; gap:10px;">
                     <input id="rerankToggle" type="checkbox">
                     <span>Re-rank (Cross-Encoder)</span>
+                </label>
+                <label class="advanced-field advanced-checkbox" style="flex-direction:row; gap:10px;">
+                    <input id="autocorrectToggle" type="checkbox">
+                    <span>Autocorrect (EN)</span>
                 </label>
             </div>
         </div>
@@ -63,7 +102,7 @@
         <p>© 2026 CineSense.</p>
     </footer>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=20260331"></script>
 </body>
 
 </html>

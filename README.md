@@ -28,9 +28,9 @@ Người chấm có thể:
 
 - **Runtime API (`api/`)**
   - **Discovery**: `GET /movies`, `GET /movies/{id}` đọc trực tiếp từ database (SQLite mặc định).
-  - **Recommendation (artifact-based)**:
+  - **Recommendation (artifact-based + hybrid)**:
     - `GET /movies/{id}/similar` → đọc neighbors đã precompute từ artifacts.
-    - `GET /recommendations/trending`, `POST /recommendations/search`.
+    - `GET /recommendations/trending`, `POST /recommendations/search` (thêm `engine`: `"artifact"` hoặc `"hybrid"`).
   - **ABSA**:
     - `POST /absa/analyze` với `{"movie_id": ...}` hoặc `{"text": ...}` trả về danh sách `(aspect, sentiment, score)`.
   - Model được train trong notebook `Notebook_Report/03b_ABSA_AutoLabeling.ipynb` + `Notebook_Report/04_Advanced_ABSA_Modeling.ipynb`.
@@ -131,6 +131,14 @@ python scripts/test_api.py --base-url http://localhost:8000
 ```
 
 - **ABSA:** `POST /absa/analyze` với body `{"text": "..."}` hoặc `{"movie_id": "..."}` trả về bảng aspect–sentiment.
+
+### Tìm kiếm hybrid (`POST /recommendations/search`)
+
+- Trường `engine` (mặc định `"artifact"`): đặt `"hybrid"` để chạy pipeline nhiều tầng giống notebook (`BM25 title` + `genre` + `SBERT` trên `_semantic_text` từ CSV, stage 3 cosine ABSA query vs `absa_movie_profiles.json`).
+- **Dữ liệu:** mặc định đọc `Notebook_Report/cleaned_profiles.csv` và file profile ABSA cùng thư mục (xem `PipelineConfig` trong `api/hybrid_search.py`). Checkpoint ABSA dùng `ABSA_ARTIFACT_NAME` (mặc định `absa_distilroberta_latest`) dưới `Notebook_Report/absa/artifacts/...`.
+- **Biến môi trường tùy chọn:** `HYBRID_CLEANED_CSV` (đường dẫn file CSV hoặc thư mục), `HYBRID_DATA_DIR`, `HYBRID_CLEANED_BASENAME`.
+- **Lần đầu** gọi hybrid có thể chậm (tải SBERT + encode toàn bộ corpus). `POST /recommendations/reload` vừa tải lại artifact gợi ý vừa **xoá cache** pipeline hybrid (lần search hybrid sau sẽ `fit()` lại).
+- **Notebook:** `Notebook_Report/hybrid_search_pipeline.py` chỉ re-export `api.hybrid_search`. Mở Jupyter/VS Code với **cwd = thư mục gốc repo** (`CineSen/`) để `import api` hoạt động (ví dụ khi chạy `06_Demo_UseCases.ipynb`).
 
 ---
 *Dự án đang trong quá trình phát triển bền vững bởi **Vien dep trai**.*

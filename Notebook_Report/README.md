@@ -18,7 +18,7 @@ Tài liệu này tóm tắt **bài toán**, **use case**, và **ánh xạ nội 
 | Thành phần | Input | Output | Phạm vi đã làm trong notebook |
 | --- | --- | --- | --- |
 | **Gợi ý theo text (retrieval)** | Chuỗi văn bản truy vấn; profile văn bản phim (review đã gộp / overview). | Danh sách phim xếp hạng theo độ tương đồng (TF-IDF / Word2Vec). | `03_Modeling_Baselines.ipynb` |
-| **ABSA** | Đoạn review (sau tiền xử lý). | Nhãn pseudo **aspect + sentiment**; mô hình BERT-tiny học multi-label. | `03b_ABSA_AutoLabeling.ipynb`, `04_Advanced_ABSA_Modeling.ipynb` |
+| **ABSA** | Đoạn review (sau tiền xử lý). | Nhãn pseudo **aspect + sentiment**; mô hình (DistilRoBERTa) học multi-label. | `03b_ABSA_AutoLabeling.ipynb`, `04_Advanced_ABSA_Modeling.ipynb` |
 | **Đánh giá** | Kết quả thực nghiệm đã lưu (JSON). | Bảng metric, biểu đồ, confusion matrix, ví dụ. | `05_Model_Evaluation.ipynb` |
 
 ---
@@ -42,8 +42,8 @@ Tài liệu này tóm tắt **bài toán**, **use case**, và **ánh xạ nội 
 | 1 | `01_Data_Collection.ipynb` | Thu thập dữ liệu (crawl TMDB) → `cinesense_movies.csv`, `cinesense_reviews.csv` |
 | 2 | `02_Data_Preprocessing_EDA.ipynb` | Làm sạch, tạo profile, EDA → `cleaned_profiles.csv`, `absa_clean_reviews.csv` |
 | 3 | `03_Modeling_Baselines.ipynb` | Baseline gợi ý (TF-IDF, Word2Vec), đánh giá IR → `eval_results.json` |
-| 4 | `03b_ABSA_AutoLabeling.ipynb` | Pseudo-label ABSA → `absa/absa_unlabeled.jsonl`, `absa/labeled_absa_auto.jsonl` |
-| 5 | `04_Advanced_ABSA_Modeling.ipynb` | Huấn luyện ABSA (BERT-tiny), xuất `absa/absa_eval.json` |
+| 4 | `03b_ABSA_AutoLabeling.ipynb` | Pseudo-label ABSA (sentence + VADER mặc định) → `labeled_absa_auto.jsonl`, `labeling_metadata.json` |
+| 5 | `04_Advanced_ABSA_Modeling.ipynb` | Huấn luyện ABSA (DistilRoBERTa), xuất `absa/absa_eval.json` |
 | 6 | `05_Model_Evaluation.ipynb` | Tổng hợp đánh giá recommendation + ABSA |
 
 ---
@@ -62,7 +62,7 @@ Tài liệu này tóm tắt **bài toán**, **use case**, và **ánh xạ nội 
   - file tối thiểu: `metadata.json`, `movie_index.json`, `similar_by_movie.json`
   - nếu semantic embedding: thêm `embeddings.npy`
 - ABSA:
-  - `Notebook_Report/absa/artifacts/absa_bert_tiny_latest/`
+  - `Notebook_Report/absa/artifacts/absa_distilroberta_latest/` (hoặc tên khác qua `ABSA_ARTIFACT_NAME`)
   - thêm `Notebook_Report/absa/absa_movie_profiles.json` để bật refine theo khía cạnh
 
 ### Checklist trước khi demo web

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
+from scipy.sparse import vstack as sparse_vstack
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -210,6 +211,36 @@ class RecommendationStore:
             )
         return output
 
+    def _resolve_semantic_backend(self, semantic_backend: str) -> tuple[str, str]:
+        """(internal_code, display_label). internal: sbert | tfidf | none."""
+        has_sbert = self.sbert_embeddings is not None and bool(self.search_ids)
+        has_tfidf = (
+            self.tfidf_vectorizer is not None
+            and self.tfidf_matrix is not None
+            and bool(self.search_ids)
+        )
+        if semantic_backend == "auto":
+            if has_sbert:
+                short = (self.sbert_model_name or "sbert").split("/")[-1]
+                return ("sbert", f"sbert:{short}")
+            if has_tfidf:
+                return ("tfidf", "tfidf")
+            return ("none", "none")
+        if semantic_backend == "sbert":
+            if not has_sbert:
+                raise ValueError(
+                    "semantic_backend=sbert requires SBERT embeddings (embeddings.npy) in the artifact directory.",
+                )
+            short = (self.sbert_model_name or "sbert").split("/")[-1]
+            return ("sbert", f"sbert:{short}")
+        if semantic_backend == "tfidf":
+            if not has_tfidf:
+                raise ValueError(
+                    "semantic_backend=tfidf requires a TF-IDF index (search_docs built from movie_index).",
+                )
+            return ("tfidf", "tfidf")
+        raise ValueError(f"Unknown semantic_backend: {semantic_backend!r}")
+
     def trending_movies(self, limit: int = 10) -> list[dict[str, Any]]:
         ranked = sorted(
             self.movie_index.values(),
@@ -229,29 +260,16 @@ class RecommendationStore:
             for row in ranked[:limit]
         ]
 
-    def search_movies(
+    def _rank_movies(
         self,
+        prepared: tuple[Any, ...],
         query: str,
-        limit: int = 10,
-        query_type: str = "auto",
-        filters: Optional[dict[str, Any]] = None,
-        absa_refine: bool = True,
-        explain: bool = False,
-        user_history: Optional[list[str]] = None,
-        rerank: bool = False,
-        weights_override: Optional[dict[str, float]] = None,
+        limit: int,
+        explain: bool,
+        rerank: bool,
+        absa_refine: bool,
     ) -> list[dict[str, Any]]:
-        prepared = self._prepare_search(
-            query=query,
-            query_type=query_type,
-            filters=filters,
-            absa_refine=absa_refine,
-            user_history=user_history,
-            weights_override=weights_override,
-        )
-        if prepared is None:
-            return []
-        q, norm_tokens, w_title, w_genre, w_sem, intents, active_filters, semantic_map, user_match_map = prepared
+        q, norm_tokens, w_title, w_genre, w_sem, intents, active_filters, semantic_map, user_match_map = prepared[:9]
 
         def _title_score(query_text: str, title: str) -> float:
             qn = " ".join(norm_tokens(query_text))
@@ -413,6 +431,33 @@ class RecommendationStore:
             for score, row, t_score, g_score, s_score, b_score, u_score, bonus in scored[:limit]
         ]
 
+    def search_movies(
+        self,
+        query: str,
+        limit: int = 10,
+        query_type: str = "auto",
+        filters: Optional[dict[str, Any]] = None,
+        absa_refine: bool = True,
+        explain: bool = False,
+        user_history: Optional[list[str]] = None,
+        rerank: bool = False,
+        weights_override: Optional[dict[str, float]] = None,
+        semantic_backend: str = "auto",
+    ) -> tuple[list[dict[str, Any]], str]:
+        prepared = self._prepare_search(
+            query=query,
+            query_type=query_type,
+            filters=filters,
+            absa_refine=absa_refine,
+            user_history=user_history,
+            weights_override=weights_override,
+            semantic_backend=semantic_backend,
+        )
+        if prepared is None:
+            return ([], "none")
+        rows = self._rank_movies(prepared, query, limit, explain, rerank, absa_refine)
+        return (rows, str(prepared[-1]))
+
     def search_movies_with_debug(
         self,
         query: str,
@@ -424,6 +469,7 @@ class RecommendationStore:
         user_history: Optional[list[str]] = None,
         rerank: bool = False,
         weights_override: Optional[dict[str, float]] = None,
+        semantic_backend: str = "auto",
     ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
         prepared = self._prepare_search(
             query=query,
@@ -432,21 +478,12 @@ class RecommendationStore:
             absa_refine=absa_refine,
             user_history=user_history,
             weights_override=weights_override,
+            semantic_backend=semantic_backend,
         )
         if prepared is None:
             return ([], None)
-        q, norm_tokens, w_title, w_genre, w_sem, intents, active_filters, semantic_map, user_match_map = prepared
-        rows = self.search_movies(
-            query=query,
-            limit=limit,
-            query_type=query_type,
-            filters=filters,
-            absa_refine=absa_refine,
-            explain=explain,
-            user_history=user_history,
-            rerank=rerank,
-            weights_override=weights_override,
-        )
+        q, norm_tokens, w_title, w_genre, w_sem, intents, active_filters, semantic_map, user_match_map = prepared[:9]
+        rows = self._rank_movies(prepared, query, limit, explain, rerank, absa_refine)
         # Provide high-signal debug fields for demo/explainability.
         debug = {
             "query_raw": query,
@@ -458,6 +495,8 @@ class RecommendationStore:
             "absa_refine": bool(absa_refine),
             "absa_intents": [{"aspect": a, "sentiment": s} for a, s in intents],
             "semantic_ready": bool(semantic_map),
+            "semantic_backend_requested": semantic_backend,
+            "semantic_model_resolved": str(prepared[-1]),
             "absa_profile_ready": bool(self.absa_movie_profiles),
             "personalization": {
                 "history_count": len(user_history or []),
@@ -479,6 +518,7 @@ class RecommendationStore:
         absa_refine: bool,
         user_history: Optional[list[str]],
         weights_override: Optional[dict[str, float]],
+        semantic_backend: str = "auto",
     ) -> tuple[
         str,
         Any,
@@ -489,6 +529,7 @@ class RecommendationStore:
         dict[str, Any],
         dict[str, float],
         dict[str, float],
+        str,
     ] | None:
         q = (query or "").strip().lower()
         query_terms = {token for token in q.split() if token}
@@ -538,13 +579,14 @@ class RecommendationStore:
         intents = _infer_absa_intents(q) if absa_refine else []
         active_filters = filters or {}
 
+        internal, semantic_label = self._resolve_semantic_backend(semantic_backend)
+
         semantic_map: dict[str, float] = {}
-        # Prefer SBERT embeddings if available; fallback to TF-IDF semantic.
-        if self.sbert_embeddings is not None and self.search_ids:
+        if internal == "sbert":
             try:
                 model_name = self.sbert_model_name or "sentence-transformers/all-MiniLM-L6-v2"
                 model = _get_sbert_model(model_name)
-                if model is not None:
+                if model is not None and self.sbert_embeddings is not None and self.search_ids:
                     q_emb = model.encode([q], convert_to_numpy=True)
                     sims = cosine_similarity(q_emb, self.sbert_embeddings).ravel()
                     mx = float(np.max(sims)) if sims.size else 0.0
@@ -552,38 +594,61 @@ class RecommendationStore:
                     semantic_map = {mid: float(norm[i]) for i, mid in enumerate(self.search_ids)}
             except Exception:
                 semantic_map = {}
-        elif self.tfidf_vectorizer is not None and self.tfidf_matrix is not None and self.search_ids:
+        elif internal == "tfidf":
             try:
-                qv = self.tfidf_vectorizer.transform([q])
-                sims = cosine_similarity(qv, self.tfidf_matrix).ravel()
-                mx = float(np.max(sims)) if sims.size else 0.0
-                norm = sims / mx if mx > 0 else sims
-                semantic_map = {mid: float(norm[i]) for i, mid in enumerate(self.search_ids)}
+                if self.tfidf_vectorizer is not None and self.tfidf_matrix is not None and self.search_ids:
+                    qv = self.tfidf_vectorizer.transform([q])
+                    sims = cosine_similarity(qv, self.tfidf_matrix).ravel()
+                    mx = float(np.max(sims)) if sims.size else 0.0
+                    norm = sims / mx if mx > 0 else sims
+                    semantic_map = {mid: float(norm[i]) for i, mid in enumerate(self.search_ids)}
             except Exception:
                 semantic_map = {}
 
-        # Personalization: build user embedding from recent query history (recency-weighted mean).
         user_match_map: dict[str, float] = {}
-        if self.sbert_embeddings is not None and self.search_ids and user_history:
-            try:
-                model_name = self.sbert_model_name or "sentence-transformers/all-MiniLM-L6-v2"
-                model = _get_sbert_model(model_name)
-                if model is not None:
-                    history = [str(x).strip().lower() for x in user_history if str(x).strip()]
-                    history = history[-30:]
-                    if history:
+        history = [str(x).strip().lower() for x in (user_history or []) if str(x).strip()]
+        history = history[-30:]
+        if history:
+            if internal == "sbert" and self.sbert_embeddings is not None and self.search_ids:
+                try:
+                    model_name = self.sbert_model_name or "sentence-transformers/all-MiniLM-L6-v2"
+                    model = _get_sbert_model(model_name)
+                    if model is not None:
                         h_emb = model.encode(history, convert_to_numpy=True)
-                        # recency weights: newest gets higher weight
-                        weights = np.linspace(0.5, 1.0, num=len(history), dtype=float)
-                        user_vec = np.average(h_emb, axis=0, weights=weights)
+                        weights_h = np.linspace(0.5, 1.0, num=len(history), dtype=float)
+                        user_vec = np.average(h_emb, axis=0, weights=weights_h)
                         sims = cosine_similarity([user_vec], self.sbert_embeddings).ravel()
                         mx = float(np.max(sims)) if sims.size else 0.0
                         norm = sims / mx if mx > 0 else sims
                         user_match_map = {mid: float(norm[i]) for i, mid in enumerate(self.search_ids)}
-            except Exception:
-                user_match_map = {}
+                except Exception:
+                    user_match_map = {}
+            elif internal == "tfidf" and self.tfidf_vectorizer is not None and self.tfidf_matrix is not None:
+                try:
+                    weights_h = np.linspace(0.5, 1.0, num=len(history), dtype=float)
+                    wsum = float(weights_h.sum())
+                    mats = [self.tfidf_vectorizer.transform([h]) * weights_h[i] for i, h in enumerate(history)]
+                    stacked = sparse_vstack(mats)
+                    user_vec = stacked.sum(axis=0) / wsum
+                    sims = cosine_similarity(self.tfidf_matrix, user_vec).ravel()
+                    mx = float(np.max(sims)) if sims.size else 0.0
+                    norm = sims / mx if mx > 0 else sims
+                    user_match_map = {mid: float(norm[i]) for i, mid in enumerate(self.search_ids)}
+                except Exception:
+                    user_match_map = {}
 
-        return (q, _norm_tokens, w_title, w_genre, w_sem, intents, active_filters, semantic_map, user_match_map)
+        return (
+            q,
+            _norm_tokens,
+            w_title,
+            w_genre,
+            w_sem,
+            intents,
+            active_filters,
+            semantic_map,
+            user_match_map,
+            semantic_label,
+        )
 
 
 _store: RecommendationStore | None = None
@@ -598,5 +663,14 @@ def get_recommendation_store() -> RecommendationStore:
 
 def reload_recommendation_store() -> RecommendationStore:
     global _store
+    from api.hybrid_service import invalidate_hybrid_pipeline
+
+    invalidate_hybrid_pipeline()
+    try:
+        from api.baseline_cosine import invalidate_baseline_cache
+
+        invalidate_baseline_cache()
+    except Exception:
+        pass
     _store = RecommendationStore.load()
     return _store

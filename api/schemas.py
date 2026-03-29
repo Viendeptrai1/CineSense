@@ -7,8 +7,8 @@ Request and response models for the API endpoints.
 
 from datetime import date
 from datetime import datetime
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any, Literal
+from pydantic import BaseModel, Field, field_validator
 
 # ============================================
 # Movie Schemas
@@ -105,9 +105,26 @@ class SimilarMoviesResponse(BaseModel):
     results: List[RecommendationItem]
 
 
+RecommendationEngineId = Literal[
+    "artifact",
+    "hybrid",
+    "baseline_sbert",
+    "baseline_tfidf",
+    "baseline_word2vec",
+]
+
+
 class RecommendationSearchRequest(BaseModel):
     query: str = Field(..., min_length=2, max_length=300)
     limit: int = Field(default=10, ge=1, le=50)
+    engine: Optional[Literal["artifact", "hybrid"]] = Field(
+        default=None,
+        description="Một engine (legacy). Nếu không gửi `engines` thì mặc định ['artifact']; có thể dùng engine='hybrid' thay cho engines=['hybrid'].",
+    )
+    engines: Optional[List[RecommendationEngineId]] = Field(
+        default=None,
+        description="Danh sách engine không trùng: artifact, hybrid, và/hoặc baseline_* (cosine notebook 03). Tối đa 6.",
+    )
     query_type: Optional[str] = Field(default="auto", pattern="^(auto|title|genre|context)$")
     filters: Optional[RecommendationSearchFilters] = None
     absa_refine: bool = True
@@ -116,6 +133,28 @@ class RecommendationSearchRequest(BaseModel):
     user_history: Optional[List[str]] = None
     rerank: bool = False
     weights_override: Optional[RecommendationWeightsOverride] = None
+    semantic_backend: Optional[Literal["auto", "sbert", "tfidf"]] = Field(
+        default="auto",
+        description="Chỉ áp dụng engine artifact: auto=ưu tiên SBERT nếu có embeddings.npy, không thì TF-IDF; "
+        "sbert|tfidf=ép dùng đúng lớp ngữ nghĩa để so sánh hiệu năng mô hình.",
+    )
+    autocorrect: bool = Field(
+        default=False,
+        description="Nếu True: sửa chính tả tiếng Anh (từ điển) trước khi tìm; phản hồi có query_effective.",
+    )
+
+    @field_validator("engines")
+    @classmethod
+    def _engines_unique(cls, v):
+        if v is None:
+            return None
+        u = list(dict.fromkeys(v))
+        if len(u) < 1 or len(u) > 6:
+            raise ValueError(
+                "engines: cần 1–6 giá trị không trùng "
+                "(artifact, hybrid, baseline_sbert, baseline_tfidf, baseline_word2vec)"
+            )
+        return u
 
 
 class RecommendationSearchDebug(BaseModel):
@@ -128,15 +167,68 @@ class RecommendationSearchDebug(BaseModel):
     absa_refine: bool
     absa_intents: List[Dict[str, str]] = Field(default_factory=list)
     semantic_ready: bool
+    semantic_backend_requested: Optional[str] = None
+    semantic_model_resolved: Optional[str] = None
     absa_profile_ready: bool
     personalization: Dict[str, Any] = Field(default_factory=dict)
+    engine: Optional[
+        Literal["artifact", "hybrid", "baseline_sbert", "baseline_tfidf", "baseline_word2vec"]
+    ] = None
+    hybrid_notes: List[str] = Field(default_factory=list)
+    rerank: Optional[Dict[str, Any]] = None
+
+
+class EngineSearchBlock(BaseModel):
+    """Một block kết quả theo engine (dùng khi client gửi nhiều engine)."""
+
+    engine: RecommendationEngineId
+    total_results: int
+    model: str
+    results: List[RecommendationItem]
+    debug: Optional[RecommendationSearchDebug] = None
 
 
 class RecommendationSearchResponse(BaseModel):
     query: str
+    query_effective: str = Field(
+        ...,
+        description="Chuỗi thực tế đưa vào engine (sau autocorrect nếu bật; không thì trùng query).",
+    )
+    autocorrect_applied: bool = False
+    engines_used: List[str] = Field(
+        default_factory=list,
+        description="Engine thực sự đã chạy (theo thứ tự). Dùng để kiểm tra client có gửi đúng `engines` hay không.",
+    )
     total_results: int
     model: str
     debug: Optional[RecommendationSearchDebug] = None
+    results: List[RecommendationItem]
+    by_engine: Optional[List[EngineSearchBlock]] = Field(
+        default=None,
+        description="Khi yêu cầu >1 engine: mỗi phần tử là kết quả + debug tương ứng. `results` trùng block đầu (tương thích client cũ).",
+    )
+
+
+class BaselineCosineRequest(BaseModel):
+    """Tìm phim chỉ bằng cosine(query, doc_vector) trên artifact baseline (notebook 03)."""
+
+    query: str = Field(..., min_length=2, max_length=300)
+    baseline: Literal["sbert", "tfidf", "word2vec"] = Field(
+        ...,
+        description="Thư mục: sbert_latest | tfidf_latest | word2vec_latest.",
+    )
+    limit: int = Field(default=24, ge=1, le=50)
+
+
+class BaselineCosineResponse(BaseModel):
+    """Kết quả xếp hạng thuần cosine, tách biệt engine Artifact/Hybrid."""
+
+    query: str
+    baseline: Literal["sbert", "tfidf", "word2vec"]
+    model: str
+    ranking: str = Field(default="cosine_similarity", description="Chỉ cosine, không BM25/ABSA/rerank.")
+    artifact_version: str = Field("", description="Ví dụ sbert_latest")
+    total_results: int
     results: List[RecommendationItem]
 
 

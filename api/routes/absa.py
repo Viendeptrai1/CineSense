@@ -4,6 +4,7 @@ Aspect-Based Sentiment Analysis API.
 POST /absa/analyze: analyze movie reviews for aspect-level sentiment.
 """
 
+import os
 from pathlib import Path
 from uuid import UUID
 
@@ -22,8 +23,18 @@ router = APIRouter(prefix="/absa", tags=["ABSA"])
 
 # Path from project root so it works regardless of CWD when uvicorn runs
 _project_root = Path(__file__).resolve().parent.parent.parent
-_absa_notebook_artifact_dir = _project_root / "Notebook_Report" / "absa" / "artifacts" / "absa_bert_tiny_latest"
+_absa_fallback_dir = _project_root / "Notebook_Report" / "absa" / "artifacts" / "absa_bert_tiny_latest"
 _model_tokenizer_schema = None
+
+
+def _resolve_absa_artifact_dir() -> Path:
+    name = os.getenv("ABSA_ARTIFACT_NAME", "absa_distilroberta_latest")
+    primary = _project_root / "Notebook_Report" / "absa" / "artifacts" / name
+    if (primary / "model.pt").exists():
+        return primary
+    if (_absa_fallback_dir / "model.pt").exists():
+        return _absa_fallback_dir
+    return primary
 
 
 def _get_absa_model():
@@ -39,31 +50,33 @@ def _get_absa_model():
             predict_aspects,
         )
 
+        artifact_dir = _resolve_absa_artifact_dir()
         model = None
         tokenizer = None
         schema = {}
 
-        if (_absa_notebook_artifact_dir / "model.pt").exists() and (_absa_notebook_artifact_dir / "tokenizer").exists():
-            ckpt_path = _absa_notebook_artifact_dir / "model.pt"
+        if (artifact_dir / "model.pt").exists() and (artifact_dir / "tokenizer").exists():
+            ckpt_path = artifact_dir / "model.pt"
             ckpt = torch.load(ckpt_path, map_location="cpu")
-            model_name = ckpt.get("model_name", "prajjwal1/bert-tiny")
+            model_name = ckpt.get("model_name", "distilroberta-base")
             state_dict = ckpt.get("state_dict", ckpt)
 
             model = AbsaClassifier(model_name)
             model.load_state_dict(state_dict, strict=False)
-            tokenizer = AutoTokenizer.from_pretrained(str(_absa_notebook_artifact_dir / "tokenizer"))
+            tokenizer = AutoTokenizer.from_pretrained(str(artifact_dir / "tokenizer"))
             schema = {
                 "aspects": ckpt.get("aspects", []),
                 "sentiments": ckpt.get("sentiments", []),
                 "source": "Notebook_Report",
             }
-            logger.info("Loaded ABSA artifact from {}", _absa_notebook_artifact_dir)
+            logger.info("Loaded ABSA artifact from {}", artifact_dir)
         if model is None or tokenizer is None:
             raise HTTPException(
                 status_code=503,
                 detail=(
                     "ABSA model not available. "
-                    "Expected Notebook_Report/absa/artifacts/absa_bert_tiny_latest/."
+                    "Train notebook 04 or set ABSA_ARTIFACT_NAME; "
+                    f"looked under {artifact_dir} (fallback: {_absa_fallback_dir})."
                 ),
             )
 

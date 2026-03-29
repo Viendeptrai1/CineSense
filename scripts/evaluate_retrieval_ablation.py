@@ -82,7 +82,9 @@ def main() -> None:
         relevant = {item["movie_id"] for item in (store.similar_by_movie.get(str(qid), []) or [])[:20]}
         if not relevant:
             continue
-        rows = store.search_movies(query_text, limit=args.limit, query_type="auto", explain=False, absa_refine=False)
+        rows, _semantic_label = store.search_movies(
+            query_text, limit=args.limit, query_type="auto", explain=False, absa_refine=False
+        )
         ranked = [r["movie_id"] for r in rows]
         metrics.append(
             Metrics(

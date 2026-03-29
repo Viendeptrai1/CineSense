@@ -3,6 +3,7 @@
  */
 
 const API_BASE_URL = 'http://localhost:8000';
+const API_FETCH_TIMEOUT_MS = 28000;
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
 const USER_PROFILE_KEY = 'cinesense_user_profile_v1';
 const SEARCH_HISTORY_KEY = 'cinesense_search_history_v1';
@@ -21,12 +22,19 @@ const elements = {
     refreshRecommendationsBtn: document.getElementById('refreshRecommendationsBtn'),
     debugToggle: document.getElementById('debugToggle'),
     rerankToggle: document.getElementById('rerankToggle'),
+    engineArtifact: document.getElementById('engineArtifact'),
+    engineHybrid: document.getElementById('engineHybrid'),
+    semanticBackend: document.getElementById('semanticBackend'),
+    autocorrectToggle: document.getElementById('autocorrectToggle'),
     profileForm: document.getElementById('profileForm'),
     prefKeywords: document.getElementById('prefKeywords'),
     prefMinYear: document.getElementById('prefMinYear'),
     prefAbsaRefine: document.getElementById('prefAbsaRefine'),
     clearProfileBtn: document.getElementById('clearProfileBtn'),
     profileStatus: document.getElementById('profileStatus'),
+    engineBaselineSbert: document.getElementById('engineBaselineSbert'),
+    engineBaselineTfidf: document.getElementById('engineBaselineTfidf'),
+    engineBaselineW2v: document.getElementById('engineBaselineW2v'),
 };
 
 const state = {
@@ -37,10 +45,43 @@ const state = {
     mode: 'catalog',
 };
 
+function mapFetchError(err) {
+    if (!err) return new Error('Lỗi mạng không xác định');
+    if (err.name === 'AbortError') {
+        return new Error(
+            `API không phản hồi trong ${API_FETCH_TIMEOUT_MS / 1000}s (${API_BASE_URL}). ` +
+                'Chạy backend: ./scripts/run_backend.sh và mở /health.'
+        );
+    }
+    const m = String(err.message || '');
+    if (m.includes('Failed to fetch') || m.includes('NetworkError') || m.includes('Load failed')) {
+        return new Error(
+            `Không kết nối được ${API_BASE_URL} — kiểm tra backend đã bật và không chặn CORS / mixed content.`
+        );
+    }
+    return err instanceof Error ? err : new Error(String(err));
+}
+
+async function fetchWithTimeout(url, init = {}) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), init.timeoutMs ?? API_FETCH_TIMEOUT_MS);
+    try {
+        const { timeoutMs: _t, ...rest } = init;
+        return await fetch(url, { ...rest, signal: ctrl.signal });
+    } finally {
+        clearTimeout(t);
+    }
+}
+
 async function getMovies(page = 1, pageSize = 24) {
-    const response = await fetch(`${API_BASE_URL}/movies?page=${page}&page_size=${pageSize}`);
-    if (!response.ok) throw new Error('Không thể tải danh sách phim');
-    return response.json();
+    const url = `${API_BASE_URL}/movies?page=${page}&page_size=${pageSize}`;
+    try {
+        const response = await fetchWithTimeout(url);
+        if (!response.ok) throw new Error('Không thể tải danh sách phim');
+        return response.json();
+    } catch (e) {
+        throw mapFetchError(e);
+    }
 }
 
 async function getMovieDetails(movieId) {
@@ -61,11 +102,33 @@ async function getTrendingRecommendations(limit = 24) {
     return response.json();
 }
 
+function getSelectedEngines() {
+    const out = [];
+    if (elements.engineArtifact && elements.engineArtifact.checked) out.push('artifact');
+    if (elements.engineHybrid && elements.engineHybrid.checked) out.push('hybrid');
+    if (elements.engineBaselineSbert && elements.engineBaselineSbert.checked) out.push('baseline_sbert');
+    if (elements.engineBaselineTfidf && elements.engineBaselineTfidf.checked) out.push('baseline_tfidf');
+    if (elements.engineBaselineW2v && elements.engineBaselineW2v.checked) out.push('baseline_word2vec');
+    if (!out.length) out.push('artifact');
+    return out;
+}
+
+/** Lớp ngữ nghĩa cho engine artifact: auto | sbert | tfidf (API bỏ qua khi chỉ chọn hybrid). */
+function getSemanticBackend() {
+    const el = elements.semanticBackend;
+    if (!el || !el.value) return 'auto';
+    const v = String(el.value).trim();
+    if (v === 'sbert' || v === 'tfidf' || v === 'auto') return v;
+    return 'auto';
+}
+
 function buildRecommendationPayload(query, limit = 24) {
     const history = loadSearchHistory();
-    return {
+    const engines = getSelectedEngines();
+    const payload = {
         query,
         limit,
+        engines,
         query_type: 'auto',
         absa_refine: true,
         explain: true,
@@ -73,16 +136,67 @@ function buildRecommendationPayload(query, limit = 24) {
         user_history: history.length ? history : undefined,
         rerank: elements.rerankToggle ? elements.rerankToggle.checked : false,
     };
+    if (engines.includes('artifact')) {
+        payload.semantic_backend = getSemanticBackend();
+    }
+    return payload;
+}
+
+/** Ghi chú khi API đã sửa chính tả (tiếng Anh). */
+function formatAutocorrectNote(data) {
+    if (!data || !data.autocorrect_applied || !data.query_effective) return '';
+    return ` • đã sửa: “${data.query_effective}”`;
+}
+
+function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/** Hiển thị engines_used từ API — nếu thiếu thì cảnh báo backend cũ (user hay “không thấy khác”). */
+function formatEngineApiStatus(data) {
+    if (!data) return '';
+    const hasEu = Array.isArray(data.engines_used) && data.engines_used.length > 0;
+    const multi = data.by_engine && data.by_engine.length > 1;
+    if (hasEu) {
+        const eu = escapeHtml(data.engines_used.join(' + '));
+        const qe = data.query_effective ? escapeHtml(String(data.query_effective)) : '';
+        let inner = `<strong style="color:#86efac">API xác nhận:</strong> engines_used = [<span style="color:#d1fae5">${eu}</span>]`;
+        if (qe) inner += ` · query hiệu lực: “${qe}”`;
+        if (multi) {
+            inner +=
+                '<br><span style="color:#fcd34d;display:inline-block;margin-top:6px;">Hai khối bên dưới: trên = Artifact, dưới = Hybrid — so sánh thứ tự phim.</span>';
+        } else if (data.engines_used.length > 1) {
+            inner +=
+                '<br><span style="color:#fbbf24">Bạn chọn nhiều engine nhưng chỉ thấy một khối — kiểm tra backend hoặc log API.</span>';
+        }
+        return inner;
+    }
+    return (
+        '<strong style="color:#fbbf24">⚠</strong> JSON không có <code style="color:#fde68a">engines_used</code> — backend có thể đang chạy <strong>bản cũ</strong>. Chạy lại <code style="color:#e5e7eb">./scripts/run_backend.sh</code>, rồi hard refresh (Ctrl+Shift+R).'
+    );
 }
 
 function normalizeRecommendationResult(movie) {
     const normalized = normalizeMovieData(movie);
     const sb = movie.score_breakdown || null;
     if (!sb) return normalized;
+    if (sb.cosine_similarity !== undefined && sb.cosine_similarity !== null) {
+        normalized.score_breakdown = {
+            cosine_similarity: Number(sb.cosine_similarity),
+        };
+        return normalized;
+    }
     normalized.score_breakdown = {
         title: Number(sb.title ?? 0),
         genre: Number(sb.genre ?? 0),
         semantic: Number(sb.semantic ?? 0),
+        stage2: Number(sb.stage2 ?? 0),
         bm25: Number(sb.bm25 ?? 0),
         user_match: Number(sb.user_match ?? 0),
         absa_bonus: Number(sb.absa_bonus ?? 0),
@@ -91,13 +205,33 @@ function normalizeRecommendationResult(movie) {
     return normalized;
 }
 
+async function parseApiErrorBody(response) {
+    const text = await response.text();
+    try {
+        const j = JSON.parse(text);
+        const d = j.detail;
+        if (typeof d === 'string') return d;
+        if (Array.isArray(d)) {
+            return d
+                .map((x) => (x && typeof x === 'object' && x.msg != null ? String(x.msg) : String(x)))
+                .join('; ');
+        }
+        return text || response.statusText;
+    } catch {
+        return text || response.statusText || `HTTP ${response.status}`;
+    }
+}
+
 async function searchRecommendations(payload) {
     const response = await fetch(`${API_BASE_URL}/recommendations/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
     });
-    if (!response.ok) throw new Error('Không thể tìm gợi ý');
+    if (!response.ok) {
+        const detail = await parseApiErrorBody(response);
+        throw new Error(detail || 'Không thể tìm gợi ý');
+    }
     return response.json();
 }
 
@@ -255,11 +389,20 @@ function normalizeMovieData(movie) {
 function renderScoreBreakdown(movie) {
     const sb = movie.score_breakdown;
     if (!sb) return '';
+    if (sb.cosine_similarity !== undefined && sb.cosine_similarity !== null) {
+        const c = Number(sb.cosine_similarity);
+        return `<div class="score-breakdown"><span class="score-chip">cos θ:${c.toFixed(4)}</span></div>`;
+    }
+    const st2 =
+        sb.stage2 !== undefined && sb.stage2 !== null
+            ? `<span class="score-chip">St2:${Number(sb.stage2).toFixed(2)}</span>`
+            : '';
     return `
         <div class="score-breakdown">
             <span class="score-chip">T:${Number(sb.title ?? 0).toFixed(2)}</span>
             <span class="score-chip">G:${Number(sb.genre ?? 0).toFixed(2)}</span>
             <span class="score-chip">S:${Number(sb.semantic ?? 0).toFixed(2)}</span>
+            ${st2}
             <span class="score-chip">BM25:${Number(sb.bm25 ?? 0).toFixed(2)}</span>
             <span class="score-chip">U:${Number(sb.user_match ?? 0).toFixed(2)}</span>
             <span class="score-chip">ABSA:+${Number(sb.absa_bonus ?? 0).toFixed(2)}</span>
@@ -309,21 +452,90 @@ function renderMovieCards(movies) {
     });
 }
 
-function renderHeader(title, subtitle) {
+const ENGINE_LABELS = {
+    artifact: 'Artifact (cửa hàng gợi ý)',
+    hybrid: 'Hybrid (CSV + SBERT)',
+    baseline_sbert: 'Baseline SBERT (cosine · notebook 03)',
+    baseline_tfidf: 'Baseline TF‑IDF (cosine · notebook 03)',
+    baseline_word2vec: 'Baseline Word2Vec (cosine · notebook 03)',
+};
+
+function renderMultiEngineResults(blocks) {
+    if (!elements.resultsGrid) return;
+    elements.resultsGrid.innerHTML = '';
+    blocks.forEach((block) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'multi-engine-block';
+        wrap.style.marginBottom = '32px';
+        let borderColor = '#60a5fa';
+        if (block.engine === 'hybrid') borderColor = '#a78bfa';
+        else if (block.engine === 'baseline_sbert') borderColor = '#34d399';
+        else if (block.engine === 'baseline_tfidf') borderColor = '#fbbf24';
+        else if (block.engine === 'baseline_word2vec') borderColor = '#f472b6';
+        wrap.style.borderLeft = `4px solid ${borderColor}`;
+        wrap.style.paddingLeft = '16px';
+        const h = document.createElement('h3');
+        h.className = 'section-title';
+        h.style.fontSize = '1.05rem';
+        h.style.marginBottom = '12px';
+        h.style.color = '#e5e7eb';
+        const label = ENGINE_LABELS[block.engine] || block.engine;
+        h.textContent = `${label} · ${block.model} (${block.total_results} kết quả)`;
+        wrap.appendChild(h);
+        const inner = document.createElement('div');
+        inner.className = 'grid-movies';
+        inner.style.display = 'grid';
+        inner.style.gap = '16px';
+        (block.results || []).forEach((m) => inner.appendChild(createMovieCard(normalizeRecommendationResult(m))));
+        wrap.appendChild(inner);
+        elements.resultsGrid.appendChild(wrap);
+    });
+}
+
+function renderRecommendationResults(data) {
+    if (data.by_engine && data.by_engine.length > 1) {
+        renderMultiEngineResults(data.by_engine);
+    } else {
+        renderMovieCards((data.results || []).map(normalizeRecommendationResult));
+    }
+}
+
+function renderHeader(title, subtitle, engineStatusHtml) {
     if (!elements.resultsHeader) return;
     elements.resultsHeader.classList.remove('hidden');
+    const statusBlock =
+        engineStatusHtml && String(engineStatusHtml).trim()
+            ? `<div class="engine-api-status" style="margin-top:12px;padding:12px 14px;border-radius:12px;border:1px solid rgba(148,163,184,0.35);background:rgba(15,23,42,0.65);font-size:0.9rem;line-height:1.45;color:#e5e7eb;">${engineStatusHtml}</div>`
+            : '';
     elements.resultsHeader.innerHTML = `
         <h2 class="section-title">${title}</h2>
         <p style="color: #9ca3af; margin-top: 4px; font-size: 0.95rem;">${subtitle}</p>
+        ${statusBlock}
         <div id="debugPanel" class="hidden" style="margin-top: 12px;"></div>
     `;
 }
 
-function renderDebugPanel(debug, payload) {
+function renderDebugPanel(data, payload) {
     const panel = document.getElementById('debugPanel');
     if (!panel) return;
+    if (!data) {
+        panel.classList.add('hidden');
+        panel.innerHTML = '';
+        return;
+    }
     const enabled = elements.debugToggle ? elements.debugToggle.checked : false;
-    if (!enabled || !debug) {
+
+    const sections = [];
+    if (data.by_engine && data.by_engine.length > 1) {
+        data.by_engine.forEach((b) => {
+            if (b.debug) sections.push({ title: `${b.engine} · ${b.model}`, debug: b.debug });
+        });
+    } else if (data.debug) {
+        const eng = Array.isArray(payload.engines) && payload.engines.length ? payload.engines.join(' + ') : 'artifact';
+        sections.push({ title: eng, debug: data.debug });
+    }
+
+    if (!enabled || !sections.length) {
         panel.classList.add('hidden');
         panel.innerHTML = '';
         return;
@@ -336,19 +548,36 @@ function renderDebugPanel(debug, payload) {
             return String(obj);
         }
     };
-    const explainer = (() => {
-        const n = Array.isArray(debug.tokens) ? debug.tokens.length : 0;
-        const w = debug.weights || {};
-        const intents = Array.isArray(debug.absa_intents) ? debug.absa_intents.length : 0;
-        const hist = debug.personalization ? Number(debug.personalization.history_count ?? 0) : 0;
-        const ce = debug.rerank?.enabled ? 'bật' : 'tắt';
-        return `Query ${n} token → auto-weight (T=${Number(w.title ?? 0).toFixed(2)}, G=${Number(w.genre ?? 0).toFixed(2)}, S=${Number(w.semantic ?? 0).toFixed(2)}). ABSA intents=${intents}. History=${hist}. Cross-Encoder=${ce}.`;
-    })();
 
-    panel.innerHTML = `
-        <div class="advanced-panel" style="padding: 14px;">
+    const buildOne = (debug, title) => {
+        const explainer = (() => {
+            if (debug.engine === 'hybrid') {
+                const hn = Array.isArray(debug.hybrid_notes) ? debug.hybrid_notes.length : 0;
+                return `Engine hybrid (notebook pipeline). Ghi chú: ${hn} dòng.`;
+            }
+            if (debug.engine && String(debug.engine).startsWith('baseline_')) {
+                return 'Baseline: embed query đúng không gian vector mô hình (TF‑IDF / SBERT / Word2Vec) khớp artifact notebook 03, rồi cosine với vector từng phim — không BM25, ABSA, rerank.';
+            }
+            const n = Array.isArray(debug.tokens) ? debug.tokens.length : 0;
+            const w = debug.weights || {};
+            const intents = Array.isArray(debug.absa_intents) ? debug.absa_intents.length : 0;
+            const hist = debug.personalization ? Number(debug.personalization.history_count ?? 0) : 0;
+            const ce = debug.rerank?.enabled ? 'bật' : 'tắt';
+            return `Query ${n} token → auto-weight (T=${Number(w.title ?? 0).toFixed(2)}, G=${Number(w.genre ?? 0).toFixed(2)}, S=${Number(w.semantic ?? 0).toFixed(2)}). ABSA intents=${intents}. History=${hist}. Cross-Encoder=${ce}.`;
+        })();
+
+        const hybridNotesBlock =
+            Array.isArray(debug.hybrid_notes) && debug.hybrid_notes.length
+                ? `<div style="margin-top:12px;"><div style="color:#9ca3af; font-size:0.9rem; margin-bottom:6px;">${debug.engine === 'hybrid' ? 'Hybrid notes' : 'Ghi chú baseline'}</div><pre style="white-space:pre-wrap; background:#0b1220; color:#d1d5db; padding:12px; border-radius:12px; overflow:auto;">${pretty(debug.hybrid_notes)}</pre></div>`
+                : '';
+
+        const engChip = debug.engine || 'artifact';
+        return `
+        <div class="advanced-panel" style="padding: 14px; margin-bottom: 12px;">
+            <div style="color:#93c5fd; font-size:0.88rem; margin-bottom:8px;">${title}</div>
             <div style="color:#e5e7eb; font-size:0.95rem; margin-bottom:10px;">${explainer}</div>
             <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <span class="score-chip">engine: ${engChip}</span>
                 <span class="score-chip">mode: ${debug.query_type_requested || 'auto'}</span>
                 <span class="score-chip">w_title: ${Number(debug.weights?.title ?? 0).toFixed(2)}</span>
                 <span class="score-chip">w_genre: ${Number(debug.weights?.genre ?? 0).toFixed(2)}</span>
@@ -368,9 +597,12 @@ function renderDebugPanel(debug, payload) {
                     <div style="color:#9ca3af; font-size:0.9rem; margin-bottom:6px;">Request payload gửi lên API</div>
                     <pre style="white-space:pre-wrap; background:#0b1220; color:#d1d5db; padding:12px; border-radius:12px; overflow:auto;">${pretty(payload)}</pre>
                 </div>
+                ${hybridNotesBlock}
             </div>
-        </div>
-    `;
+        </div>`;
+    };
+
+    panel.innerHTML = sections.map((s) => buildOne(s.debug, s.title)).join('');
 }
 
 function renderMovieList(data) {
@@ -435,11 +667,23 @@ async function runRecommendationSearch() {
         const payload = buildRecommendationPayload(query, 24);
         const data = await searchRecommendations(payload);
         hideLoading();
-        if (!data.results.length) return showNoResults();
+        const hasMulti = data.by_engine && data.by_engine.length > 1;
+        const anyResults = hasMulti
+            ? data.by_engine.some((b) => (b.results || []).length > 0)
+            : (data.results || []).length > 0;
+        if (!anyResults) return showNoResults();
         const modeLabel = payload.query_type || 'auto';
-        renderHeader('Kết quả tìm gợi ý', `"${query}" • mô hình: ${data.model} • chế độ: ${modeLabel}`);
-        renderDebugPanel(data.debug || null, payload);
-        renderMovieCards((data.results || []).map(normalizeRecommendationResult));
+        const eng =
+            data.engines_used && data.engines_used.length
+                ? data.engines_used.join(' + ')
+                : (payload.engines || ['artifact']).join(' + ');
+        renderHeader(
+            'Kết quả tìm gợi ý',
+            `"${query}"${formatAutocorrectNote(data)} • engine: ${eng} • ${data.model} • chế độ: ${modeLabel}`,
+            formatEngineApiStatus(data)
+        );
+        renderDebugPanel(data, payload);
+        renderRecommendationResults(data);
     } catch (error) {
         console.error('Recommendation search failed:', error);
         showError(error.message || 'Không thể tìm gợi ý');
@@ -457,10 +701,7 @@ function buildPayloadFromProfile(profile, limit = 24) {
     const query = buildProfileQuery(profile);
     const payload = buildRecommendationPayload(query || 'movie', limit);
     payload.absa_refine = profile?.absa_refine !== false;
-    if (profile?.min_year) payload.filters = { min_year: profile.min_year };
-    if (Array.isArray(profile?.genres) && profile.genres.length) {
-        payload.filters = { ...(payload.filters || {}), genres: profile.genres };
-    }
+    // Không gửi filters API: “theo gu” = từ khóa + thể loại (trong query) + user_history (SBERT), không phải lọc cứng.
     return payload;
 }
 
@@ -477,11 +718,18 @@ async function loadRecommendationsForYou() {
     try {
         const data = await searchRecommendations(payload);
         hideLoading();
-        const results = (data.results || []).map(normalizeRecommendationResult);
-        if (!results.length) return showNoResults();
-        renderHeader('Gợi ý cho bạn', `Dựa trên hồ sơ • mô hình: ${data.model}`);
-        renderDebugPanel(data.debug || null, payload);
-        renderMovieCards(results);
+        const hasMulti = data.by_engine && data.by_engine.length > 1;
+        const anyResults = hasMulti
+            ? data.by_engine.some((b) => (b.results || []).length > 0)
+            : (data.results || []).length > 0;
+        if (!anyResults) return showNoResults();
+        const eng =
+            data.engines_used && data.engines_used.length
+                ? data.engines_used.join(' + ')
+                : (payload.engines || ['artifact']).join(' + ');
+        renderHeader('Gợi ý cho bạn', `Dựa trên hồ sơ • engine: ${eng} • ${data.model}`, formatEngineApiStatus(data));
+        renderDebugPanel(data, payload);
+        renderRecommendationResults(data);
     } catch (error) {
         showError(error.message || 'Không thể tải gợi ý');
     }
