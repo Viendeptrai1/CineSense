@@ -4,7 +4,7 @@ CineSense Text Embedding Module
 
 Handles text preprocessing and embedding generation using Sentence Transformers.
 
-Model: from `settings.embedding.model` (default `sentence-transformers/all-mpnet-base-v2`, 768-dim).
+Model: from `settings.embedding.model` (default `sentence-transformers/all-MiniLM-L6-v2`, 384-dim).
 Override via env `EMBEDDING_MODEL` / `EMBEDDING_DIMENSION` in `.env`.
 
 Text Preprocessing Pipeline (English-first, multilingual safe):

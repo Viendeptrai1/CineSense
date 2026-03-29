@@ -1,10 +1,10 @@
 """
-Integration tests: use cases với payload phức tạp hơn smoke test cơ bản.
+Integration tests: use cases với payload artifact-first + ABSA.
 
 Chạy khi backend đã bật:
   .venv/bin/python scripts/test_api_use_cases.py [--base-url http://localhost:8000]
 
-Mã thoát 0 nếu mọi bắt buộc pass; 503 (artifact/hybrid/ABSA chưa sẵn sàng) được ghi SKIP, không fail cả suite.
+Mã thoát 0 nếu mọi bắt buộc pass; 503 (artifact/ABSA chưa sẵn sàng) được ghi SKIP, không fail cả suite.
 """
 
 from __future__ import annotations
@@ -51,9 +51,6 @@ def main() -> int:
     results: list[CaseResult] = []
     movie_id: str | None = None
     indexed_movie_id: str | None = None
-
-    # Long timeout for hybrid first warm-up (SBERT encode corpus)
-    hybrid_timeout = 300.0
 
     with httpx.Client(base_url=base) as client:
         # --- UC1: Health ---
@@ -177,7 +174,6 @@ def main() -> int:
             {
                 "query": "psychological thriller non-linear timeline unreliable narrator 1990s",
                 "limit": 8,
-                "engine": "artifact",
                 "query_type": "auto",
                 "absa_refine": True,
                 "explain": True,
@@ -187,7 +183,6 @@ def main() -> int:
             {
                 "query": "Incpetion dream heist",  # typo deliberate
                 "limit": 5,
-                "engine": "artifact",
                 "filters": {"genres": ["Science Fiction"], "min_year": 2005},
                 "absa_refine": False,
             },
@@ -220,77 +215,72 @@ def main() -> int:
             r7.fail(str(e))
         results.append(r7)
 
-        # --- UC8: Hybrid — cùng ý định tìm, ABSA-heavy query, debug ---
-        r8 = CaseResult("UC8 POST search engine=hybrid — vibe + explain + debug")
-        hybrid_payload = {
+        # --- UC8: Artifact debug + explain + rerank ---
+        r8 = CaseResult("UC8 POST search artifact — vibe + explain + debug")
+        artifact_payload = {
             "query": "great visuals but pacing too slow emotional ending",
             "limit": 6,
-            "engine": "hybrid",
             "explain": True,
             "debug": True,
             "absa_refine": True,
             "filters": {"min_year": 2010},
-            "user_history": ["ignored-by-design"],
+            "user_history": ["space mystery", "slow burn drama"],
             "rerank": True,
         }
         try:
-            rr = client.post("/recommendations/search", json=hybrid_payload, timeout=hybrid_timeout)
+            rr = client.post("/recommendations/search", json=artifact_payload, timeout=60)
             if rr.status_code == 503:
-                r8.skip(f"hybrid unavailable: {_abbrev(rr.text, 200)}")
+                r8.skip(f"artifact unavailable: {_abbrev(rr.text, 200)}")
             else:
                 rr.raise_for_status()
                 data = rr.json()
-                if not str(data.get("model", "")).startswith("hybrid"):
-                    r8.fail(f"model should start with hybrid:, got {data.get('model')}")
+                if not str(data.get("model", "")).startswith("artifact:"):
+                    r8.fail(f"model should start with artifact:, got {data.get('model')}")
                 elif not data.get("results"):
-                    r8.fail("empty hybrid results")
+                    r8.fail("empty artifact results")
                 else:
                     dbg = data.get("debug") or {}
-                    notes = dbg.get("hybrid_notes") or []
                     first = data["results"][0]
                     br = first.get("score_breakdown") or {}
-                    if hybrid_payload["explain"] and not br:
+                    if artifact_payload["explain"] and not br:
                         r8.fail("explain=true but no score_breakdown")
-                    elif dbg.get("engine") != "hybrid":
-                        r8.fail("debug.engine != hybrid")
+                    elif dbg.get("engine") != "artifact":
+                        r8.fail("debug.engine != artifact")
                     else:
                         r8.ok(
-                            f"n={len(data['results'])}, debug_notes={len(notes)}, "
+                            f"n={len(data['results'])}, semantic={dbg.get('semantic_model_resolved')}, "
                             f"absa_in_breakdown={br.get('absa_bonus') is not None}"
                         )
         except Exception as e:
             r8.fail(str(e))
         results.append(r8)
 
-        # --- UC9: So sánh thứ tự artifact vs hybrid (cùng query) ---
-        r9 = CaseResult("UC9 So sánh ranking artifact vs hybrid (query cố định)")
-        q = "space exploration crew isolation mystery"
+        # --- UC9: Artifact autocorrect + engines_used ---
+        r9 = CaseResult("UC9 POST search artifact — autocorrect + metadata")
         try:
-            ra = client.post(
+            r = client.post(
                 "/recommendations/search",
-                json={"query": q, "limit": 10, "engine": "artifact", "absa_refine": False},
+                json={
+                    "query": "Incpetion dream heist",
+                    "limit": 5,
+                    "absa_refine": False,
+                    "autocorrect": True,
+                },
                 timeout=45,
             )
-            rh = client.post(
-                "/recommendations/search",
-                json={"query": q, "limit": 10, "engine": "hybrid", "explain": False},
-                timeout=hybrid_timeout,
-            )
-            if ra.status_code == 503 or rh.status_code == 503:
-                r9.skip("one engine returned 503")
+            if r.status_code == 503:
+                r9.skip("artifact not ready")
             else:
-                ra.raise_for_status()
-                rh.raise_for_status()
-                ids_a = [x.get("movie_id") for x in ra.json().get("results") or []]
-                ids_h = [x.get("movie_id") for x in rh.json().get("results") or []]
-                if not ids_a or not ids_h:
-                    r9.fail("empty results on one side")
+                r.raise_for_status()
+                data = r.json()
+                if not data.get("results"):
+                    r9.fail("empty results")
+                elif data.get("engines_used") != ["artifact"]:
+                    r9.fail(f"unexpected engines_used={data.get('engines_used')}")
                 else:
-                    same_top = ids_a[0] == ids_h[0]
-                    overlap = len(set(ids_a) & set(ids_h))
                     r9.ok(
-                        f"top_match={same_top}, overlap_in_top10={overlap}/10 "
-                        f"(khác thứ tự là bình thường giữa hai engine)"
+                        f"query_effective={data.get('query_effective')!r}, "
+                        f"autocorrect={data.get('autocorrect_applied')}"
                     )
         except Exception as e:
             r9.fail(str(e))
@@ -301,7 +291,7 @@ def main() -> int:
         try:
             r = client.post(
                 "/recommendations/search",
-                json={"query": "a", "engine": "artifact"},
+                json={"query": "a"},
                 timeout=10,
             )
             if r.status_code != 422:
@@ -352,7 +342,7 @@ def main() -> int:
             print(f"       → {x.detail}")
     print(
         f"\nTổng: OK={ok_count}, SKIP={skip_count}, FAIL={fail_count} "
-        f"(SKIP = môi trường chưa train / thiếu artifact hoặc hybrid data)\n"
+        f"(SKIP = môi trường chưa train / thiếu artifact hoặc ABSA data)\n"
     )
 
     return 1 if fail_count else 0

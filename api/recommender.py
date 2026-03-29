@@ -60,6 +60,7 @@ def _resolve_artifact_dir() -> Path:
         return Path(configured)
     # Use notebook-exported artifacts as the single default source.
     candidates = [
+        Path("Notebook_Report/training/artifacts/sbert_en_finetuned_latest"),
         Path("Notebook_Report/training/artifacts/sbert_en_latest"),
         Path("Notebook_Report/training/artifacts/sbert_latest"),
         Path("Notebook_Report/training/artifacts/tfidf_latest"),
@@ -69,6 +70,31 @@ def _resolve_artifact_dir() -> Path:
         if candidate.exists():
             return candidate
     return candidates[0]
+
+
+def _row_search_text(
+    row: dict[str, Any],
+    *,
+    document_text_field: str | None = None,
+) -> str:
+    candidates: list[str] = []
+    if document_text_field:
+        candidates.append(str(row.get(document_text_field, "") or "").strip())
+    candidates.extend(
+        [
+            str(row.get("search_text", "") or "").strip(),
+            str(row.get("retrieval_text", "") or "").strip(),
+            str(row.get("review_profile", "") or "").strip(),
+            str(row.get("movie_profile", "") or "").strip(),
+        ]
+    )
+    for candidate in candidates:
+        if candidate:
+            return candidate[:8000]
+    title = str(row.get("title", "") or "")
+    overview = str(row.get("overview", "") or "")
+    genres = " ".join(row.get("genres", []) or [])
+    return f"title: {title} | genres: {genres} | overview: {overview}".strip()
 
 
 @dataclass
@@ -87,10 +113,12 @@ class RecommendationStore:
     bm25_ids: list[str]
     bm25_tokenized: list[list[str]]
     absa_movie_profiles: dict[str, Any]
+    document_text_field: str | None
+    text_representation: str | None
 
     @classmethod
-    def load(cls) -> "RecommendationStore":
-        artifact_dir = _resolve_artifact_dir()
+    def load_from_artifact(cls, artifact_dir: Path | None = None) -> "RecommendationStore":
+        artifact_dir = artifact_dir or _resolve_artifact_dir()
         metadata = {}
         movie_index: dict[str, dict[str, Any]] = {}
         similar_by_movie: dict[str, list[dict[str, Any]]] = {}
@@ -104,6 +132,8 @@ class RecommendationStore:
         bm25_ids: list[str] = []
         bm25_tokenized: list[list[str]] = []
         absa_movie_profiles: dict[str, Any] = {}
+        document_text_field: str | None = None
+        text_representation: str | None = None
 
         metadata_path = artifact_dir / "metadata.json"
         index_path = artifact_dir / "movie_index.json"
@@ -111,6 +141,9 @@ class RecommendationStore:
 
         if metadata_path.exists():
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if isinstance(metadata, dict):
+                document_text_field = str(metadata.get("document_text_field") or "").strip() or None
+                text_representation = str(metadata.get("text_representation") or "").strip() or None
         if index_path.exists():
             rows = json.loads(index_path.read_text(encoding="utf-8"))
             movie_index = {row["id"]: row for row in rows}
@@ -118,10 +151,9 @@ class RecommendationStore:
             for row in rows:
                 rid = row["id"]
                 search_ids.append(rid)
-                title = str(row.get("title", "") or "")
-                overview = str(row.get("overview", "") or "")
-                genres = " ".join(row.get("genres", []) or [])
-                search_docs.append(f"title: {title} | genres: {genres} | overview: {overview}".strip())
+                search_docs.append(
+                    _row_search_text(row, document_text_field=document_text_field)
+                )
 
         if similar_path.exists():
             similar_by_movie = json.loads(similar_path.read_text(encoding="utf-8"))
@@ -186,7 +218,13 @@ class RecommendationStore:
             bm25_ids=bm25_ids,
             bm25_tokenized=bm25_tokenized,
             absa_movie_profiles=absa_movie_profiles,
+            document_text_field=document_text_field,
+            text_representation=text_representation,
         )
+
+    @classmethod
+    def load(cls) -> "RecommendationStore":
+        return cls.load_from_artifact()
 
     def is_ready(self) -> bool:
         return bool(self.movie_index and self.similar_by_movie)
@@ -221,7 +259,10 @@ class RecommendationStore:
         )
         if semantic_backend == "auto":
             if has_sbert:
-                short = (self.sbert_model_name or "sbert").split("/")[-1]
+                if self.metadata.get("fine_tuned") and self.metadata.get("artifact_version"):
+                    short = str(self.metadata.get("artifact_version"))
+                else:
+                    short = (self.sbert_model_name or "sbert").split("/")[-1]
                 return ("sbert", f"sbert:{short}")
             if has_tfidf:
                 return ("tfidf", "tfidf")
@@ -231,7 +272,10 @@ class RecommendationStore:
                 raise ValueError(
                     "semantic_backend=sbert requires SBERT embeddings (embeddings.npy) in the artifact directory.",
                 )
-            short = (self.sbert_model_name or "sbert").split("/")[-1]
+            if self.metadata.get("fine_tuned") and self.metadata.get("artifact_version"):
+                short = str(self.metadata.get("artifact_version"))
+            else:
+                short = (self.sbert_model_name or "sbert").split("/")[-1]
             return ("sbert", f"sbert:{short}")
         if semantic_backend == "tfidf":
             if not has_tfidf:
@@ -387,9 +431,11 @@ class RecommendationStore:
                     pairs = []
                     for _score, row, *_rest in top_pool:
                         title = str(row.get("title", "") or "")
-                        overview = str(row.get("overview", "") or "")
-                        genres = " ".join(row.get("genres", []) or [])
-                        doc = f"{title}. {genres}. {overview}".strip()
+                        search_text = _row_search_text(
+                            row,
+                            document_text_field=self.document_text_field,
+                        )
+                        doc = f"{title}. {search_text}".strip()
                         pairs.append((q, doc))
                     ce_scores = ce.predict(pairs)
                     ce_scores = np.asarray(ce_scores, dtype=float)
@@ -497,6 +543,9 @@ class RecommendationStore:
             "semantic_ready": bool(semantic_map),
             "semantic_backend_requested": semantic_backend,
             "semantic_model_resolved": str(prepared[-1]),
+            "artifact_version": self.metadata.get("artifact_version"),
+            "artifact_text_representation": self.text_representation,
+            "artifact_fine_tuned": bool(self.metadata.get("fine_tuned")),
             "absa_profile_ready": bool(self.absa_movie_profiles),
             "personalization": {
                 "history_count": len(user_history or []),
@@ -663,9 +712,6 @@ def get_recommendation_store() -> RecommendationStore:
 
 def reload_recommendation_store() -> RecommendationStore:
     global _store
-    from api.hybrid_service import invalidate_hybrid_pipeline
-
-    invalidate_hybrid_pipeline()
     try:
         from api.baseline_cosine import invalidate_baseline_cache
 

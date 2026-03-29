@@ -8,11 +8,11 @@
 ## 6.2. Kịch bản demo đề xuất
 ## 6.2.1. Kịch bản A: Query ngắn theo keyword
 - Ví dụ: `crime thriller`
-- Kỳ vọng: model lexical/hybrid phản hồi nhanh, kết quả đúng chủ đề.
+- Kỳ vọng: artifact recommender phản hồi nhanh, kết quả đúng chủ đề.
 
 ## 6.2.2. Kịch bản B: Query ngữ cảnh dài
 - Ví dụ: `mind-bending movie with plot twist and smart detective`
-- Kỳ vọng: tín hiệu semantic và re-rank phát huy tốt hơn keyword thuần.
+- Kỳ vọng: tín hiệu semantic của artifact và re-rank phát huy tốt hơn keyword thuần.
 
 ## 6.2.3. Kịch bản C: Query theo cảm xúc/khía cạnh
 - Ví dụ: `strong acting and good pacing`

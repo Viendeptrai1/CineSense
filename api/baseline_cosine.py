@@ -1,7 +1,7 @@
 """
 Tìm phim chỉ bằng cosine similarity: embed câu query rồi so với vector corpus
 đã lưu trong artifact baseline (notebook 03 — tfidf_latest / word2vec_latest / sbert_latest).
-Luồng này tách biệt Artifact (cửa hàng gợi ý) và Hybrid.
+Luồng này tách biệt khỏi artifact recommender runtime chính.
 """
 
 from __future__ import annotations
@@ -15,10 +15,11 @@ from typing import Any, Literal
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
-BaselineName = Literal["sbert", "tfidf", "word2vec"]
+BaselineName = Literal["sbert", "sbert_en_finetuned", "tfidf", "word2vec"]
 
 SUBDIR: dict[str, str] = {
     "sbert": "sbert_latest",
+    "sbert_en_finetuned": "sbert_en_finetuned_latest",
     "tfidf": "tfidf_latest",
     "word2vec": "word2vec_latest",
 }

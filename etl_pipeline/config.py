@@ -22,14 +22,14 @@ class EmbeddingSettings(BaseSettings):
         extra="ignore"
     )
     
-    # Default: all-mpnet-base-v2 — high-quality English sentence embeddings (768-dim)
-    # Optimized for semantic similarity on English review data.
+    # Default: all-MiniLM-L6-v2 — compact English sentence embeddings (384-dim)
+    # Matches the English-first retrieval fine-tuning pipeline in Notebook_Report.
     model: str = Field(
-        default="sentence-transformers/all-mpnet-base-v2",
+        default="sentence-transformers/all-MiniLM-L6-v2",
         description="Sentence Transformer model for ETL/embedder utilities",
     )
     dimension: int = Field(
-        default=768,
+        default=384,
         description="Embedding vector dimension (must match the selected model)",
     )
 

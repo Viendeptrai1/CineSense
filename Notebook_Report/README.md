@@ -17,9 +17,9 @@ Tài liệu này tóm tắt **bài toán**, **use case**, và **ánh xạ nội 
 
 | Thành phần | Input | Output | Phạm vi đã làm trong notebook |
 | --- | --- | --- | --- |
-| **Gợi ý theo text (retrieval)** | Chuỗi văn bản truy vấn; profile văn bản phim (review đã gộp / overview). | Danh sách phim xếp hạng theo độ tương đồng (TF-IDF / Word2Vec). | `03_Modeling_Baselines.ipynb` |
+| **Gợi ý theo text (retrieval)** | Chuỗi văn bản truy vấn; profile văn bản phim (review đã gộp / overview). | Danh sách phim xếp hạng theo độ tương đồng; runtime web hiện dùng **artifact recommender** với **English fine-tuned bi-encoder** export từ query bank + companion script. | `03_Modeling_Baselines.ipynb`, `retrieval/finetune_biencoder.py` |
 | **ABSA** | Đoạn review (sau tiền xử lý). | Nhãn pseudo **aspect + sentiment**; mô hình (DistilRoBERTa) học multi-label. | `03b_ABSA_AutoLabeling.ipynb`, `04_Advanced_ABSA_Modeling.ipynb` |
-| **Đánh giá** | Kết quả thực nghiệm đã lưu (JSON). | Bảng metric, biểu đồ, confusion matrix, ví dụ. | `05_Model_Evaluation.ipynb` |
+| **Đánh giá** | Kết quả thực nghiệm đã lưu (JSON) + LLM judge output + manual audit sample. | Bảng metric, biểu đồ, confusion matrix, ví dụ, và chấm điểm offline bằng Gemini. | `05_Model_Evaluation.ipynb`, `retrieval/eval_llm_judge.py` |
 
 ---
 
@@ -27,7 +27,7 @@ Tài liệu này tóm tắt **bài toán**, **use case**, và **ánh xạ nội 
 
 | STT | Use case | Diễn giải | Thành phần hệ thống chính | Notebook / ghi chú |
 | --- | --- | --- | --- | --- |
-| **UC1** | **Tìm kiếm phim bằng câu chữ** | Người dùng gõ mô tả sở thích (vd: *“slow burn thriller strong acting”*) và nhận danh sách phim phù hợp. | **Retrieval**: so khớp query với vector hóa profile văn bản phim (TF-IDF / Word2Vec). ABSA **không bắt buộc** cho bước rank đầu; có thể dùng sau để **giải thích** hoặc rerank. | `03_Modeling_Baselines.ipynb` |
+| **UC1** | **Tìm kiếm phim bằng câu chữ** | Người dùng gõ mô tả sở thích (vd: *“slow burn thriller strong acting”*) và nhận danh sách phim phù hợp. | **Retrieval**: English bi-encoder fine-tuned trên query bank nội bộ, kết hợp BM25/title/genre. ABSA **không bắt buộc** cho bước rank đầu; có thể dùng sau để **giải thích** hoặc rerank. | `03_Modeling_Baselines.ipynb`, `retrieval/build_query_bank.py`, `retrieval/finetune_biencoder.py` |
 | **UC2** | **Trang chi tiết phim — “Phim tương tự”** | Khi xem một phim, hệ thống gợi ý các phim có **review/profile văn bản gần** phim hiện tại. | Cùng pipeline retrieval với **đại diện văn bản phim** (vd: `review_profile` / profile đã merge). | `02` (tạo profile), `03` |
 | **UC3** | **Tóm tắt ý kiến theo khía cạnh** | Hiển thị xu hướng: khen/chê theo *script, acting, visuals, …* (từ review hoặc từ mô hình ABSA). | **ABSA** (pseudo-label + model); có thể tổng hợp theo phim. | `03b`, `04` |
 | **UC4** | **Lọc / ưu tiên theo khía cạnh** (mở rộng) | Người dùng quan tâm “hình ảnh” hơn “nhịp phim” → rerank hoặc lọc ứng viên sau retrieval. | Cần tín hiệu **aspect** (từ ABSA hoặc rule). | Thiết kế use case; thực nghiệm cốt lõi trong `03b`, `04` |
@@ -42,9 +42,12 @@ Tài liệu này tóm tắt **bài toán**, **use case**, và **ánh xạ nội 
 | 1 | `01_Data_Collection.ipynb` | Thu thập dữ liệu (crawl TMDB) → `cinesense_movies.csv`, `cinesense_reviews.csv` |
 | 2 | `02_Data_Preprocessing_EDA.ipynb` | Làm sạch, tạo profile, EDA → `cleaned_profiles.csv`, `absa_clean_reviews.csv` |
 | 3 | `03_Modeling_Baselines.ipynb` | Baseline gợi ý (TF-IDF, Word2Vec), đánh giá IR → `eval_results.json` |
+| 3b | `python -m Notebook_Report.retrieval.build_query_bank` | Sinh query bank đa dạng + pairs/triplets cho fine-tune / judge |
+| 3c | `python -m Notebook_Report.retrieval.finetune_biencoder` | Fine-tune English bi-encoder và export `sbert_en_finetuned_latest/` |
 | 4 | `03b_ABSA_AutoLabeling.ipynb` | Pseudo-label ABSA (sentence + VADER mặc định) → `labeled_absa_auto.jsonl`, `labeling_metadata.json` |
 | 5 | `04_Advanced_ABSA_Modeling.ipynb` | Huấn luyện ABSA (DistilRoBERTa), xuất `absa/absa_eval.json` |
-| 6 | `05_Model_Evaluation.ipynb` | Tổng hợp đánh giá recommendation + ABSA |
+| 6 | `python -m Notebook_Report.retrieval.eval_llm_judge` | Chạy Gemini 2.5 Flash offline để judge retrieval + tạo human audit sample |
+| 7 | `05_Model_Evaluation.ipynb` | Tổng hợp đánh giá recommendation + ABSA + LLM judge |
 
 ---
 
@@ -59,19 +62,22 @@ Tài liệu này tóm tắt **bài toán**, **use case**, và **ánh xạ nội 
 - Recommendation:
   - `Notebook_Report/training/artifacts/tfidf_latest/`
   - `Notebook_Report/training/artifacts/sbert_latest/` hoặc `sbert_en_latest/`
+  - `Notebook_Report/training/artifacts/sbert_en_finetuned_latest/` (khuyến nghị cho runtime hiện tại)
   - file tối thiểu: `metadata.json`, `movie_index.json`, `similar_by_movie.json`
   - nếu semantic embedding: thêm `embeddings.npy`
+  - nếu fine-tuned bi-encoder: thêm `model/` và metadata `document_text_field=search_text`, `fine_tuned=true`
 - ABSA:
   - `Notebook_Report/absa/artifacts/absa_distilroberta_latest/` (hoặc tên khác qua `ABSA_ARTIFACT_NAME`)
   - thêm `Notebook_Report/absa/absa_movie_profiles.json` để bật refine theo khía cạnh
+  - artifact hiện tại có thể được train từ `Kaggle_ABSA_Train_Standalone.ipynb` rồi tải về đặt lại vào `Notebook_Report/absa/`
 
 ### Checklist trước khi demo web
 
 1. Artifact mới đã có trong `Notebook_Report/.../artifacts`.
-2. `metadata.json` có `artifact_type` đúng (`tfidf` hoặc `sentence_transformer`).
+2. `metadata.json` có `artifact_type` đúng (`tfidf`, `sentence_transformer`, hoặc `sentence_transformer_finetuned`) và `document_text_field` đúng kỳ vọng.
 3. Gọi endpoint reload recommendation (`POST /recommendations/reload`).
 4. Search có trả `model` đúng artifact đang dùng.
-5. Nếu dùng debug, kiểm tra `semantic_ready`/`absa_profile_ready` đúng kỳ vọng.
+5. Nếu dùng debug, kiểm tra `semantic_ready`/`absa_profile_ready` và `artifact_text_representation` đúng kỳ vọng.
 
 ---
 
@@ -92,7 +98,7 @@ Dưới đây là **cùng cấu trúc barem**, kèm **chỗ trình bày trong đ
 | Nội dung (barem) | Yêu cầu | Điểm | Trình bày trong đồ án CineSen |
 | --- | --- | --- | --- |
 | Kiến thức NLP cơ bản | Tokenization, embedding, … | 0.5 | TF-IDF, Word2Vec, tokenization trong `02`/`03`; ABSA = multi-label trên encoder. |
-| Thuật toán / mô hình chính | Giải thích đúng mô hình | 0.5 | **Cosine similarity** (retrieval); **BERT-tiny + sigmoid + BCE** (ABSA) trong `04`. |
+| Thuật toán / mô hình chính | Giải thích đúng mô hình | 0.5 | **Cosine similarity / artifact ranking** (retrieval); **DistilRoBERTa + sigmoid + BCE** (ABSA) trong `04` hoặc notebook Kaggle standalone. |
 
 ### 4.3. Tiền xử lý dữ liệu — 1.5 điểm
 
@@ -142,7 +148,7 @@ Dưới đây là **cùng cấu trúc barem**, kèm **chỗ trình bày trong đ
 | --- | --- |
 | **Nhãn gợi ý phim (retrieval)** | Có thể dùng **weak supervision** (vd: overlap thể loại) để tính Precision@K / NDCG — giải thích trong `03`/`05`. |
 | **Nhãn ABSA** | **Pseudo-label** (keyword + lexicon trong `03b`) — không phải gold; nêu hạn chế và hướng gán nhãn tay / mô hình mạnh hơn. |
-| **ABSA vs gợi ý phim** | ABSA bổ sung **giải thích / tín hiệu khía cạnh**; **rank** chính vẫn là retrieval baseline trong `03`. |
+| **ABSA vs gợi ý phim** | ABSA bổ sung **giải thích / tín hiệu khía cạnh**; **rank** chính của web demo hiện là artifact recommender export từ notebook `03`. |
 
 ---
 

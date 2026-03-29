@@ -37,15 +37,10 @@
             </div>
             <div class="advanced-toggle-row" style="justify-content:flex-start; gap:14px; align-items:center; flex-wrap:wrap;">
                 <div class="advanced-field" style="flex-direction:row; gap:12px; align-items:center; flex-wrap:wrap;">
-                    <span style="color:#e5e7eb; font-size:0.9rem;">Engine</span>
-                    <label style="display:flex; align-items:center; gap:6px; color:#e5e7eb; font-size:0.9rem; cursor:pointer;">
-                        <input type="checkbox" id="engineArtifact" checked>
-                        Artifact (cửa hàng gợi ý)
-                    </label>
-                    <label style="display:flex; align-items:center; gap:6px; color:#e5e7eb; font-size:0.9rem; cursor:pointer;">
-                        <input type="checkbox" id="engineHybrid">
-                        Hybrid (CSV + SBERT)
-                    </label>
+                    <span style="color:#e5e7eb; font-size:0.9rem;">Runtime search</span>
+                    <span style="display:flex; align-items:center; gap:6px; color:#e5e7eb; font-size:0.9rem;">
+                        Artifact-only recommender
+                    </span>
                     <label style="display:flex; align-items:center; gap:8px; color:#e5e7eb; font-size:0.9rem;">
                         <span>Artifact semantic</span>
                         <select id="semanticBackend" style="padding:6px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.25); background:rgba(0,0,0,0.35); color:#f3f4f6;">
@@ -54,22 +49,9 @@
                             <option value="sbert">SBERT (ép)</option>
                         </select>
                     </label>
-                    <span style="color:#e5e7eb; font-size:0.85rem; width:100%;">Baseline (notebook 03 — embed query → cosine với vector phim)</span>
-                    <label style="display:flex; align-items:center; gap:6px; color:#e5e7eb; font-size:0.9rem; cursor:pointer;">
-                        <input type="checkbox" id="engineBaselineSbert">
-                        Baseline SBERT
-                    </label>
-                    <label style="display:flex; align-items:center; gap:6px; color:#e5e7eb; font-size:0.9rem; cursor:pointer;">
-                        <input type="checkbox" id="engineBaselineTfidf">
-                        Baseline TF‑IDF
-                    </label>
-                    <label style="display:flex; align-items:center; gap:6px; color:#e5e7eb; font-size:0.9rem; cursor:pointer;">
-                        <input type="checkbox" id="engineBaselineW2v">
-                        Baseline Word2Vec
-                    </label>
                 </div>
                 <p class="hero-hint-text" style="margin-top:8px; max-width:52rem;">
-                    SBERT (ép) cho Artifact cần <code style="opacity:0.9">embeddings.npy</code> trong thư mục artifact huấn luyện — chưa có thì API trả 400; dùng <strong>Auto</strong> hoặc bật <strong>Hybrid</strong> để dùng SBERT (encode tại chỗ).
+                    Artifact là luồng recommender chính của CineSen. SBERT (ép) cần <code style="opacity:0.9">embeddings.npy</code> trong thư mục artifact huấn luyện; nếu chưa có thì dùng <strong>Auto</strong> để fallback về TF‑IDF.
                 </p>
                 <label class="advanced-field advanced-checkbox" style="flex-direction:row; gap:10px;">
                     <input id="debugToggle" type="checkbox">

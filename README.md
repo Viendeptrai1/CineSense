@@ -28,12 +28,12 @@ Người chấm có thể:
 
 - **Runtime API (`api/`)**
   - **Discovery**: `GET /movies`, `GET /movies/{id}` đọc trực tiếp từ database (SQLite mặc định).
-  - **Recommendation (artifact-based + hybrid)**:
+  - **Recommendation (artifact-first runtime)**:
     - `GET /movies/{id}/similar` → đọc neighbors đã precompute từ artifacts.
-    - `GET /recommendations/trending`, `POST /recommendations/search` (thêm `engine`: `"artifact"` hoặc `"hybrid"`).
+    - `GET /recommendations/trending`, `POST /recommendations/search` → runtime chính chỉ dùng artifact recommender.
   - **ABSA**:
     - `POST /absa/analyze` với `{"movie_id": ...}` hoặc `{"text": ...}` trả về danh sách `(aspect, sentiment, score)`.
-  - Model được train trong notebook `Notebook_Report/03b_ABSA_AutoLabeling.ipynb` + `Notebook_Report/04_Advanced_ABSA_Modeling.ipynb`.
+  - Artifact ABSA hiện tại được export từ `Notebook_Report/Kaggle_ABSA_Train_Standalone.ipynb` và đặt trong `Notebook_Report/absa/`.
 
 - **Frontend (`frontend/`)**
   - Trang catalog với phân trang, badge “Has reviews”, rating trung bình.
@@ -54,7 +54,7 @@ Người chấm có thể:
 - **Database**: SQLite (`./data/cinesense.db`, `DATABASE_URL`)
 - **ML / NLP**:
   - `scikit-learn` (TF‑IDF baseline).
-  - `sentence-transformers` (embedding theo `EMBEDDING_MODEL` trong `.env`, mặc định `all-mpnet-base-v2`).
+  - `sentence-transformers` (English bi-encoder; base mặc định `sentence-transformers/all-MiniLM-L6-v2`, runtime ưu tiên artifact fine-tuned).
   - Custom ABSA model train từ notebook Kaggle.
 - **Dữ liệu**: `scripts/seed_sqlite_from_csv.py` → SQLite `data/cinesense.db`.
 
@@ -70,7 +70,7 @@ CineSen/
 ├── training/            # Legacy utilities (không phải luồng train chính thức)
 ├── infra/seed/          # Ghi chú seed (xem README trong thư mục)
 ├── scripts/             # Tiện ích (`seed_sqlite_from_csv.py`, test_api, run_backend, ...)
-└── Report_For_This_Project/  # Báo cáo LaTeX cho đồ án
+└── Notebook_Report/     # Notebook, artifacts, và tài liệu báo cáo
 ```
 
 ---
@@ -91,8 +91,7 @@ python scripts/seed_sqlite_from_csv.py
 # hoặc: uvicorn api.main:app --reload --port 8000
 
 # 4. Khởi động Frontend (terminal 2)
-./scripts/run_frontend.sh
-# hoặc: cd frontend && python3 -m http.server 3000
+cd frontend && python3 -m http.server 3000
 ```
 
 **Test API (sau khi backend đang chạy):** `python scripts/test_api.py --base-url http://localhost:8000`
@@ -104,7 +103,7 @@ Truy cập: [http://localhost:3000](http://localhost:3000)
 > **Lưu ý:**
 > - Chạy `python scripts/seed_sqlite_from_csv.py` sau khi có `Notebook_Report/cinesense_*.csv` và `movie_index.json` trong artifact (để UUID khớp gợi ý).
 > - Reset dữ liệu: xóa `data/cinesense.db` rồi chạy lại script seed.
-> - Recommendation runtime ưu tiên artifacts từ `Notebook_Report/training/artifacts/`.
+> - Recommendation runtime ưu tiên `Notebook_Report/training/artifacts/sbert_en_finetuned_latest/`, rồi mới fallback sang artifact cũ.
 > - Nếu chưa có artifact phù hợp, runtime fallback theo thứ tự nguồn khả dụng và frontend vẫn có thể quay về catalog chuẩn.
 
 ### Huấn luyện mô hình (quy trình chính thức)
@@ -115,8 +114,15 @@ source .venv/bin/activate
 # 01_Data_Collection.ipynb
 # 02_Data_Preprocessing_EDA.ipynb
 # 03_Modeling_Baselines.ipynb
+# Companion scripts cho retrieval English-first:
+# python -m Notebook_Report.retrieval.build_query_bank
+# python -m Notebook_Report.retrieval.finetune_biencoder
 # 03b_ABSA_AutoLabeling.ipynb
 # 04_Advanced_ABSA_Modeling.ipynb
+# hoặc train/refresh ABSA artifact trên Kaggle:
+# Kaggle_ABSA_Train_Standalone.ipynb
+# Offline LLM-as-a-Judge cho retrieval:
+# python -m Notebook_Report.retrieval.eval_llm_judge --dry-run
 # 05_Model_Evaluation.ipynb
 # 06_Demo_UseCases.ipynb
 ```
@@ -132,13 +138,22 @@ python scripts/test_api.py --base-url http://localhost:8000
 
 - **ABSA:** `POST /absa/analyze` với body `{"text": "..."}` hoặc `{"movie_id": "..."}` trả về bảng aspect–sentiment.
 
-### Tìm kiếm hybrid (`POST /recommendations/search`)
+### Tìm kiếm artifact (`POST /recommendations/search`)
 
-- Trường `engine` (mặc định `"artifact"`): đặt `"hybrid"` để chạy pipeline nhiều tầng giống notebook (`BM25 title` + `genre` + `SBERT` trên `_semantic_text` từ CSV, stage 3 cosine ABSA query vs `absa_movie_profiles.json`).
-- **Dữ liệu:** mặc định đọc `Notebook_Report/cleaned_profiles.csv` và file profile ABSA cùng thư mục (xem `PipelineConfig` trong `api/hybrid_search.py`). Checkpoint ABSA dùng `ABSA_ARTIFACT_NAME` (mặc định `absa_distilroberta_latest`) dưới `Notebook_Report/absa/artifacts/...`.
-- **Biến môi trường tùy chọn:** `HYBRID_CLEANED_CSV` (đường dẫn file CSV hoặc thư mục), `HYBRID_DATA_DIR`, `HYBRID_CLEANED_BASENAME`.
-- **Lần đầu** gọi hybrid có thể chậm (tải SBERT + encode toàn bộ corpus). `POST /recommendations/reload` vừa tải lại artifact gợi ý vừa **xoá cache** pipeline hybrid (lần search hybrid sau sẽ `fit()` lại).
-- **Notebook:** `Notebook_Report/hybrid_search_pipeline.py` chỉ re-export `api.hybrid_search`. Mở Jupyter/VS Code với **cwd = thư mục gốc repo** (`CineSen/`) để `import api` hoạt động (ví dụ khi chạy `06_Demo_UseCases.ipynb`).
+- Runtime chính dùng **artifact recommender** từ `Notebook_Report/training/artifacts/*`.
+- Luồng xếp hạng hiện tại trong `api/recommender.py` đã bao gồm:
+  - BM25 recall trên `movie_index.json`
+  - fuzzy title overlap
+  - genre matching
+  - semantic scoring bằng `semantic_backend=auto|tfidf|sbert`
+    - `auto` hiện ưu tiên artifact **English fine-tuned bi-encoder** (`sbert_en_finetuned_latest`) nếu có
+    - query-time document text bám theo `search_text` / metadata export từ artifact để đồng bộ với lúc train
+  - optional ABSA refine từ `Notebook_Report/absa/absa_movie_profiles.json`
+  - optional personalization từ `user_history`
+  - optional Cross-Encoder rerank (`cross-encoder/ms-marco-MiniLM-L-6-v2`)
+- `POST /recommendations/reload` dùng để nạp lại artifact recommender và cache baseline.
+- Đánh giá retrieval hiện có thêm query bank đa dạng + offline **Gemini 2.5 Flash LLM-as-a-Judge** (không phải dependency online của web app).
+- Nếu cần bản đồ flow/use case chi tiết: xem `docs/cinesen_flow_audit.md`.
 
 ---
 *Dự án đang trong quá trình phát triển bền vững bởi **Vien dep trai**.*

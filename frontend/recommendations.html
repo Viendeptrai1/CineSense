@@ -32,15 +32,10 @@
             </div>
             <div style="margin-top:12px; display:flex; gap:14px; flex-wrap:wrap; align-items:center;">
                 <div class="advanced-field" style="flex-direction:row; gap:12px; align-items:center; flex-wrap:wrap;">
-                    <span style="color:#6b7280; font-size:0.9rem;">Engine</span>
-                    <label style="display:flex; align-items:center; gap:6px; font-size:0.95rem; cursor:pointer;">
-                        <input type="checkbox" id="engineArtifact" checked>
-                        Artifact
-                    </label>
-                    <label style="display:flex; align-items:center; gap:6px; font-size:0.95rem; cursor:pointer;">
-                        <input type="checkbox" id="engineHybrid">
-                        Hybrid (CSV)
-                    </label>
+                    <span style="color:#6b7280; font-size:0.9rem;">Runtime search</span>
+                    <span style="display:flex; align-items:center; gap:6px; font-size:0.95rem;">
+                        Artifact-only recommender
+                    </span>
                     <label style="display:flex; align-items:center; gap:8px; font-size:0.95rem;">
                         <span style="color:#6b7280;">Artifact semantic</span>
                         <select id="semanticBackend" style="padding:6px 10px; border-radius:8px; border:1px solid #e5e7eb;">
@@ -49,22 +44,9 @@
                             <option value="sbert">SBERT</option>
                         </select>
                     </label>
-                    <span style="color:#6b7280; font-size:0.85rem; width:100%;">Baseline (notebook 03)</span>
-                    <label style="display:flex; align-items:center; gap:6px; font-size:0.95rem; cursor:pointer;">
-                        <input type="checkbox" id="engineBaselineSbert">
-                        Baseline SBERT
-                    </label>
-                    <label style="display:flex; align-items:center; gap:6px; font-size:0.95rem; cursor:pointer;">
-                        <input type="checkbox" id="engineBaselineTfidf">
-                        Baseline TF‑IDF
-                    </label>
-                    <label style="display:flex; align-items:center; gap:6px; font-size:0.95rem; cursor:pointer;">
-                        <input type="checkbox" id="engineBaselineW2v">
-                        Baseline Word2Vec
-                    </label>
                 </div>
                 <p style="margin:8px 0 0; font-size:0.85rem; color:#6b7280; max-width:40rem;">
-                    SBERT cho Artifact cần <code>embeddings.npy</code> trong artifact; chưa có → 400 nếu chọn SBERT. Dùng Auto hoặc bật Hybrid (SBERT tại chỗ).
+                    Artifact là luồng recommender chính. Nếu artifact chưa có <code>embeddings.npy</code> thì chọn <strong>Auto</strong> để API fallback về TF‑IDF.
                 </p>
                 <label class="advanced-field advanced-checkbox" style="flex-direction:row; gap:10px;">
                     <input id="debugToggle" type="checkbox">

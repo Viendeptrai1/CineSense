@@ -36,6 +36,7 @@ from etl_pipeline.database import (  # noqa: E402
 
 def _default_movie_index_path() -> Path:
     candidates = [
+        ROOT / "Notebook_Report/training/artifacts/sbert_en_finetuned_latest/movie_index.json",
         ROOT / "Notebook_Report/training/artifacts/tfidf_latest/movie_index.json",
         ROOT / "Notebook_Report/training/artifacts/word2vec_latest/movie_index.json",
     ]

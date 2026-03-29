@@ -22,8 +22,6 @@ const elements = {
     refreshRecommendationsBtn: document.getElementById('refreshRecommendationsBtn'),
     debugToggle: document.getElementById('debugToggle'),
     rerankToggle: document.getElementById('rerankToggle'),
-    engineArtifact: document.getElementById('engineArtifact'),
-    engineHybrid: document.getElementById('engineHybrid'),
     semanticBackend: document.getElementById('semanticBackend'),
     autocorrectToggle: document.getElementById('autocorrectToggle'),
     profileForm: document.getElementById('profileForm'),
@@ -32,9 +30,6 @@ const elements = {
     prefAbsaRefine: document.getElementById('prefAbsaRefine'),
     clearProfileBtn: document.getElementById('clearProfileBtn'),
     profileStatus: document.getElementById('profileStatus'),
-    engineBaselineSbert: document.getElementById('engineBaselineSbert'),
-    engineBaselineTfidf: document.getElementById('engineBaselineTfidf'),
-    engineBaselineW2v: document.getElementById('engineBaselineW2v'),
 };
 
 const state = {
@@ -102,18 +97,7 @@ async function getTrendingRecommendations(limit = 24) {
     return response.json();
 }
 
-function getSelectedEngines() {
-    const out = [];
-    if (elements.engineArtifact && elements.engineArtifact.checked) out.push('artifact');
-    if (elements.engineHybrid && elements.engineHybrid.checked) out.push('hybrid');
-    if (elements.engineBaselineSbert && elements.engineBaselineSbert.checked) out.push('baseline_sbert');
-    if (elements.engineBaselineTfidf && elements.engineBaselineTfidf.checked) out.push('baseline_tfidf');
-    if (elements.engineBaselineW2v && elements.engineBaselineW2v.checked) out.push('baseline_word2vec');
-    if (!out.length) out.push('artifact');
-    return out;
-}
-
-/** Lớp ngữ nghĩa cho engine artifact: auto | sbert | tfidf (API bỏ qua khi chỉ chọn hybrid). */
+/** Lớp ngữ nghĩa cho artifact: auto | sbert | tfidf. */
 function getSemanticBackend() {
     const el = elements.semanticBackend;
     if (!el || !el.value) return 'auto';
@@ -124,22 +108,17 @@ function getSemanticBackend() {
 
 function buildRecommendationPayload(query, limit = 24) {
     const history = loadSearchHistory();
-    const engines = getSelectedEngines();
-    const payload = {
+    return {
         query,
         limit,
-        engines,
         query_type: 'auto',
         absa_refine: true,
         explain: true,
         debug: elements.debugToggle ? elements.debugToggle.checked : false,
         user_history: history.length ? history : undefined,
         rerank: elements.rerankToggle ? elements.rerankToggle.checked : false,
+        semantic_backend: getSemanticBackend(),
     };
-    if (engines.includes('artifact')) {
-        payload.semantic_backend = getSemanticBackend();
-    }
-    return payload;
 }
 
 /** Ghi chú khi API đã sửa chính tả (tiếng Anh). */
@@ -162,19 +141,11 @@ function escapeHtml(s) {
 function formatEngineApiStatus(data) {
     if (!data) return '';
     const hasEu = Array.isArray(data.engines_used) && data.engines_used.length > 0;
-    const multi = data.by_engine && data.by_engine.length > 1;
     if (hasEu) {
         const eu = escapeHtml(data.engines_used.join(' + '));
         const qe = data.query_effective ? escapeHtml(String(data.query_effective)) : '';
         let inner = `<strong style="color:#86efac">API xác nhận:</strong> engines_used = [<span style="color:#d1fae5">${eu}</span>]`;
         if (qe) inner += ` · query hiệu lực: “${qe}”`;
-        if (multi) {
-            inner +=
-                '<br><span style="color:#fcd34d;display:inline-block;margin-top:6px;">Hai khối bên dưới: trên = Artifact, dưới = Hybrid — so sánh thứ tự phim.</span>';
-        } else if (data.engines_used.length > 1) {
-            inner +=
-                '<br><span style="color:#fbbf24">Bạn chọn nhiều engine nhưng chỉ thấy một khối — kiểm tra backend hoặc log API.</span>';
-        }
         return inner;
     }
     return (
@@ -452,52 +423,8 @@ function renderMovieCards(movies) {
     });
 }
 
-const ENGINE_LABELS = {
-    artifact: 'Artifact (cửa hàng gợi ý)',
-    hybrid: 'Hybrid (CSV + SBERT)',
-    baseline_sbert: 'Baseline SBERT (cosine · notebook 03)',
-    baseline_tfidf: 'Baseline TF‑IDF (cosine · notebook 03)',
-    baseline_word2vec: 'Baseline Word2Vec (cosine · notebook 03)',
-};
-
-function renderMultiEngineResults(blocks) {
-    if (!elements.resultsGrid) return;
-    elements.resultsGrid.innerHTML = '';
-    blocks.forEach((block) => {
-        const wrap = document.createElement('div');
-        wrap.className = 'multi-engine-block';
-        wrap.style.marginBottom = '32px';
-        let borderColor = '#60a5fa';
-        if (block.engine === 'hybrid') borderColor = '#a78bfa';
-        else if (block.engine === 'baseline_sbert') borderColor = '#34d399';
-        else if (block.engine === 'baseline_tfidf') borderColor = '#fbbf24';
-        else if (block.engine === 'baseline_word2vec') borderColor = '#f472b6';
-        wrap.style.borderLeft = `4px solid ${borderColor}`;
-        wrap.style.paddingLeft = '16px';
-        const h = document.createElement('h3');
-        h.className = 'section-title';
-        h.style.fontSize = '1.05rem';
-        h.style.marginBottom = '12px';
-        h.style.color = '#e5e7eb';
-        const label = ENGINE_LABELS[block.engine] || block.engine;
-        h.textContent = `${label} · ${block.model} (${block.total_results} kết quả)`;
-        wrap.appendChild(h);
-        const inner = document.createElement('div');
-        inner.className = 'grid-movies';
-        inner.style.display = 'grid';
-        inner.style.gap = '16px';
-        (block.results || []).forEach((m) => inner.appendChild(createMovieCard(normalizeRecommendationResult(m))));
-        wrap.appendChild(inner);
-        elements.resultsGrid.appendChild(wrap);
-    });
-}
-
 function renderRecommendationResults(data) {
-    if (data.by_engine && data.by_engine.length > 1) {
-        renderMultiEngineResults(data.by_engine);
-    } else {
-        renderMovieCards((data.results || []).map(normalizeRecommendationResult));
-    }
+    renderMovieCards((data.results || []).map(normalizeRecommendationResult));
 }
 
 function renderHeader(title, subtitle, engineStatusHtml) {
@@ -526,13 +453,8 @@ function renderDebugPanel(data, payload) {
     const enabled = elements.debugToggle ? elements.debugToggle.checked : false;
 
     const sections = [];
-    if (data.by_engine && data.by_engine.length > 1) {
-        data.by_engine.forEach((b) => {
-            if (b.debug) sections.push({ title: `${b.engine} · ${b.model}`, debug: b.debug });
-        });
-    } else if (data.debug) {
-        const eng = Array.isArray(payload.engines) && payload.engines.length ? payload.engines.join(' + ') : 'artifact';
-        sections.push({ title: eng, debug: data.debug });
+    if (data.debug) {
+        sections.push({ title: 'artifact', debug: data.debug });
     }
 
     if (!enabled || !sections.length) {
@@ -551,13 +473,6 @@ function renderDebugPanel(data, payload) {
 
     const buildOne = (debug, title) => {
         const explainer = (() => {
-            if (debug.engine === 'hybrid') {
-                const hn = Array.isArray(debug.hybrid_notes) ? debug.hybrid_notes.length : 0;
-                return `Engine hybrid (notebook pipeline). Ghi chú: ${hn} dòng.`;
-            }
-            if (debug.engine && String(debug.engine).startsWith('baseline_')) {
-                return 'Baseline: embed query đúng không gian vector mô hình (TF‑IDF / SBERT / Word2Vec) khớp artifact notebook 03, rồi cosine với vector từng phim — không BM25, ABSA, rerank.';
-            }
             const n = Array.isArray(debug.tokens) ? debug.tokens.length : 0;
             const w = debug.weights || {};
             const intents = Array.isArray(debug.absa_intents) ? debug.absa_intents.length : 0;
@@ -565,11 +480,6 @@ function renderDebugPanel(data, payload) {
             const ce = debug.rerank?.enabled ? 'bật' : 'tắt';
             return `Query ${n} token → auto-weight (T=${Number(w.title ?? 0).toFixed(2)}, G=${Number(w.genre ?? 0).toFixed(2)}, S=${Number(w.semantic ?? 0).toFixed(2)}). ABSA intents=${intents}. History=${hist}. Cross-Encoder=${ce}.`;
         })();
-
-        const hybridNotesBlock =
-            Array.isArray(debug.hybrid_notes) && debug.hybrid_notes.length
-                ? `<div style="margin-top:12px;"><div style="color:#9ca3af; font-size:0.9rem; margin-bottom:6px;">${debug.engine === 'hybrid' ? 'Hybrid notes' : 'Ghi chú baseline'}</div><pre style="white-space:pre-wrap; background:#0b1220; color:#d1d5db; padding:12px; border-radius:12px; overflow:auto;">${pretty(debug.hybrid_notes)}</pre></div>`
-                : '';
 
         const engChip = debug.engine || 'artifact';
         return `
@@ -597,7 +507,6 @@ function renderDebugPanel(data, payload) {
                     <div style="color:#9ca3af; font-size:0.9rem; margin-bottom:6px;">Request payload gửi lên API</div>
                     <pre style="white-space:pre-wrap; background:#0b1220; color:#d1d5db; padding:12px; border-radius:12px; overflow:auto;">${pretty(payload)}</pre>
                 </div>
-                ${hybridNotesBlock}
             </div>
         </div>`;
     };
@@ -667,19 +576,12 @@ async function runRecommendationSearch() {
         const payload = buildRecommendationPayload(query, 24);
         const data = await searchRecommendations(payload);
         hideLoading();
-        const hasMulti = data.by_engine && data.by_engine.length > 1;
-        const anyResults = hasMulti
-            ? data.by_engine.some((b) => (b.results || []).length > 0)
-            : (data.results || []).length > 0;
+        const anyResults = (data.results || []).length > 0;
         if (!anyResults) return showNoResults();
         const modeLabel = payload.query_type || 'auto';
-        const eng =
-            data.engines_used && data.engines_used.length
-                ? data.engines_used.join(' + ')
-                : (payload.engines || ['artifact']).join(' + ');
         renderHeader(
             'Kết quả tìm gợi ý',
-            `"${query}"${formatAutocorrectNote(data)} • engine: ${eng} • ${data.model} • chế độ: ${modeLabel}`,
+            `"${query}"${formatAutocorrectNote(data)} • engine: artifact • ${data.model} • chế độ: ${modeLabel}`,
             formatEngineApiStatus(data)
         );
         renderDebugPanel(data, payload);
@@ -718,16 +620,9 @@ async function loadRecommendationsForYou() {
     try {
         const data = await searchRecommendations(payload);
         hideLoading();
-        const hasMulti = data.by_engine && data.by_engine.length > 1;
-        const anyResults = hasMulti
-            ? data.by_engine.some((b) => (b.results || []).length > 0)
-            : (data.results || []).length > 0;
+        const anyResults = (data.results || []).length > 0;
         if (!anyResults) return showNoResults();
-        const eng =
-            data.engines_used && data.engines_used.length
-                ? data.engines_used.join(' + ')
-                : (payload.engines || ['artifact']).join(' + ');
-        renderHeader('Gợi ý cho bạn', `Dựa trên hồ sơ • engine: ${eng} • ${data.model}`, formatEngineApiStatus(data));
+        renderHeader('Gợi ý cho bạn', `Dựa trên hồ sơ • engine: artifact • ${data.model}`, formatEngineApiStatus(data));
         renderDebugPanel(data, payload);
         renderRecommendationResults(data);
     } catch (error) {

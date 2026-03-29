@@ -49,14 +49,26 @@ Recommended provenance fields:
 
 ## Canonical Embedding Spec
 
-- `paraphrase-multilingual-MiniLM-L12-v2`
+- English bi-encoder fine-tuned from `sentence-transformers/all-MiniLM-L6-v2`
 - embedding dimension: `384`
 - distance metric: `cosine`
 
+The runtime contract now depends on artifact metadata, not just a raw HF model id. A serving-ready retrieval artifact should expose:
+- `artifact_type`
+- `artifact_version`
+- `model_name`
+- `base_model_name`
+- `document_text_field`
+- `text_representation`
+- `fine_tuned`
+
+`movie_index.json` rows should keep the lightweight movie metadata plus a `search_text` field when the semantic retriever was trained on review-driven text.
+
 This spec must remain consistent across:
 - `.env`
-- `etl_pipeline/config.py`
-- `etl_pipeline/embedder.py`
+- `api/recommender.py`
+- `Notebook_Report/retrieval/finetune_biencoder.py`
+- exported `metadata.json`
 
 ## Reproducible Audit
 

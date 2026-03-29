@@ -48,7 +48,7 @@ def main() -> int:
             timeout=30,
         )
         if r.status_code == 503:
-            print("   ABSA model not loaded (train first: python -m training.models.absa_model)")
+            print("   ABSA model not loaded (export artifact from Kaggle_ABSA_Train_Standalone.ipynb or notebook 04 first)")
         else:
             r.raise_for_status()
             data = r.json()
@@ -104,7 +104,6 @@ def main() -> int:
             json={
                 "query": "space adventure science fiction",
                 "limit": 3,
-                "engine": "artifact",
                 "absa_refine": False,
             },
             timeout=30,
@@ -125,22 +124,23 @@ def main() -> int:
         print(f"   FAIL: {e}")
         ok = False
 
-    # 6. Recommendation search (hybrid engine; may download SBERT on first run)
-    print("6. POST /recommendations/search (engine=hybrid)")
+    # 6. Recommendation search (artifact with debug + rerank)
+    print("6. POST /recommendations/search (artifact + debug)")
     try:
         r = httpx.post(
             f"{base}/recommendations/search",
             json={
-                "query": "space adventure science fiction",
+                "query": "space adventure science fiction with strong visuals",
                 "limit": 3,
-                "engine": "hybrid",
-                "absa_refine": False,
-                "explain": False,
+                "absa_refine": True,
+                "explain": True,
+                "debug": True,
+                "rerank": True,
             },
-            timeout=120,
+            timeout=60,
         )
         if r.status_code == 503:
-            print(f"   (hybrid unavailable: {r.text[:200]})")
+            print(f"   (artifact recommender unavailable: {r.text[:200]})")
         else:
             r.raise_for_status()
             data = r.json()
@@ -148,38 +148,33 @@ def main() -> int:
             extra = ""
             if data.get("engines_used") is not None:
                 extra += f", engines_used={data.get('engines_used')}"
+            if data.get("debug"):
+                extra += ", debug=yes"
             print(f"   results={n}, model={data.get('model')}{extra}")
     except Exception as e:
         print(f"   FAIL: {e}")
         ok = False
 
-    # 7. Multi-engine (cần API mới có field engines + engines_used trong response)
-    print("7. POST /recommendations/search (engines=[artifact, hybrid])")
+    # 7. Baseline cosine (evaluation endpoint)
+    print("7. POST /recommendations/baseline-cosine")
     try:
         r = httpx.post(
-            f"{base}/recommendations/search",
+            f"{base}/recommendations/baseline-cosine",
             json={
                 "query": "space adventure",
                 "limit": 2,
-                "engines": ["artifact", "hybrid"],
-                "absa_refine": False,
-                "explain": False,
+                "baseline": "tfidf",
             },
-            timeout=120,
+            timeout=45,
         )
         if r.status_code == 503:
-            print("   (artifact or hybrid not ready)")
-        elif r.status_code == 500:
-            print("   FAIL: 500 — thường do API chưa restart sau khi đổi schema response")
-            ok = False
+            print("   (baseline artifact not ready)")
         else:
             r.raise_for_status()
             data = r.json()
-            be = data.get("by_engine")
-            eu = data.get("engines_used")
-            print(f"   by_engine={'yes' if be else 'no'}, engines_used={eu}, model={data.get('model')}")
-            if eu and len(eu) > 1 and not be:
-                print("   WARN: nhiều engine nhưng by_engine null — kiểm tra version API")
+            print(
+                f"   results={len(data.get('results') or [])}, baseline={data.get('baseline')}, model={data.get('model')}"
+            )
     except Exception as e:
         print(f"   FAIL: {e}")
         ok = False

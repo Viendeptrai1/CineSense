@@ -23,17 +23,12 @@ router = APIRouter(prefix="/absa", tags=["ABSA"])
 
 # Path from project root so it works regardless of CWD when uvicorn runs
 _project_root = Path(__file__).resolve().parent.parent.parent
-_absa_fallback_dir = _project_root / "Notebook_Report" / "absa" / "artifacts" / "absa_bert_tiny_latest"
 _model_tokenizer_schema = None
 
 
 def _resolve_absa_artifact_dir() -> Path:
     name = os.getenv("ABSA_ARTIFACT_NAME", "absa_distilroberta_latest")
     primary = _project_root / "Notebook_Report" / "absa" / "artifacts" / name
-    if (primary / "model.pt").exists():
-        return primary
-    if (_absa_fallback_dir / "model.pt").exists():
-        return _absa_fallback_dir
     return primary
 
 
@@ -46,7 +41,6 @@ def _get_absa_model():
     try:
         from training.models.absa_model import (
             AbsaClassifier,
-            load_absa_artifact,
             predict_aspects,
         )
 
@@ -75,8 +69,8 @@ def _get_absa_model():
                 status_code=503,
                 detail=(
                     "ABSA model not available. "
-                    "Train notebook 04 or set ABSA_ARTIFACT_NAME; "
-                    f"looked under {artifact_dir} (fallback: {_absa_fallback_dir})."
+                    "Export artifact from notebook 04 or Kaggle_ABSA_Train_Standalone.ipynb, then set ABSA_ARTIFACT_NAME; "
+                    f"looked under {artifact_dir}."
                 ),
             )
 
